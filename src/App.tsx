@@ -254,6 +254,19 @@ export default function App() {
       console.error('Google login error:', err);
       if (err.code === 'auth/popup-blocked' || err.code === 'auth/cancelled-popup-request') {
         alert('O pop-up de autenticação foi bloqueado. Abra o aplicativo em tela cheia para fazer login.');
+      } else if (err.code === 'auth/unauthorized-domain') {
+        alert(
+          '⚠️ Erro de Domínio Não Autorizado!\n\n' +
+          'O domínio "ispirato-pedidos.vercel.app" precisa ser adicionado como um domínio autorizado no seu Firebase Console.\n\n' +
+          'Para resolver isso em 1 minuto:\n' +
+          '1. Acesse https://console.firebase.google.com/ e entre no seu projeto.\n' +
+          '2. No menu lateral esquerdo, clique em "Authentication".\n' +
+          '3. Clique na aba "Settings" (Configurações) no topo.\n' +
+          '4. No menu à esquerda das configurações, clique em "Authorized domains" (Domínios autorizados).\n' +
+          '5. Clique em "Add domain" (Adicionar domínio) e insira: ispirato-pedidos.vercel.app\n' +
+          '6. Clique em "Add" (Adicionar).\n\n' +
+          'Depois de fazer isso, o login funcionará instantaneamente no seu novo domínio!'
+        );
       } else {
         alert('Falha na autenticação do Google.');
       }
@@ -313,7 +326,13 @@ export default function App() {
       }
     } catch (err: any) {
       console.error('Admin Google Login Error:', err);
-      setAdminLoginError('Erro ao entrar com Google: ' + (err.message || 'Erro desconhecido'));
+      if (err.code === 'auth/unauthorized-domain') {
+        setAdminLoginError(
+          'Domínio Não Autorizado no Firebase! Adicione "ispirato-pedidos.vercel.app" na lista de Domínios Autorizados no menu Authentication > Settings > Authorized domains do Firebase Console para liberar o login.'
+        );
+      } else {
+        setAdminLoginError('Erro ao entrar com Google: ' + (err.message || 'Erro desconhecido'));
+      }
     }
   };
 
