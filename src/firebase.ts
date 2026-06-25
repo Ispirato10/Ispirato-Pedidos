@@ -3,18 +3,19 @@ import { getFirestore } from "firebase/firestore";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyASTJDv_KgPtcjVjm64g4sc6vxRG4kA9w8",
-  authDomain: "imperial-run-nk91c.firebaseapp.com",
-  projectId: "imperial-run-nk91c",
-  storageBucket: "imperial-run-nk91c.firebasestorage.app",
-  messagingSenderId: "209314686044",
-  appId: "1:209314686044:web:16191289abb88cdc5cb299"
+  apiKey: "AIzaSyDa32mFDETqjJtz_p7ZWqUoXVi_qB-gJbk",
+  authDomain: "ispirato-pedidos-pwa.firebaseapp.com",
+  projectId: "ispirato-pedidos-pwa",
+  storageBucket: "ispirato-pedidos-pwa.firebasestorage.app",
+  messagingSenderId: "930231895100",
+  appId: "1:930231895100:web:94cdb2e77fa0ce2089af39",
+  measurementId: "G-STWTD2MFN2"
 };
 
 const app = initializeApp(firebaseConfig);
 
-// Initialize Firestore with the specific database ID provisioned in AI Studio using getFirestore (safe for multiple calls)
-const db = getFirestore(app, "ai-studio-2f304505-100a-4b22-848a-3947e89cfd8d");
+// Initialize Firestore (using default database for the custom user project)
+const db = getFirestore(app);
 
 const auth = getAuth(app);
 const googleProvider = new GoogleAuthProvider();

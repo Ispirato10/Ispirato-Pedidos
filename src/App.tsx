@@ -3,7 +3,7 @@ import {
   Leaf, Shield, Sparkles, ShoppingBag, Send, CreditCard, ChevronRight, 
   HelpCircle, ExternalLink, RefreshCw, MessageCircle, ArrowRight,
   Search, LogIn, LogOut, User, ShieldCheck, Tag, Layers, Flame, Settings, Info,
-  Download
+  Download, X
 } from 'lucide-react';
 import { auth, db, googleProvider, OperationType, handleFirestoreError } from './firebase';
 import { onAuthStateChanged, User as FirebaseUser, signInWithPopup, signInAnonymously, signOut, signInWithEmailAndPassword } from 'firebase/auth';
@@ -23,7 +23,18 @@ const SEED_SETTINGS: AppSettings = {
   minimumOrderQty: 6,
   welcomeMessage: 'Faça seu pedido de forma rápida e prática',
   customOrderText: 'Abaixo estão listados todos os detalhes de produtos e preços do revendedor.',
-  adminEmails: ['contaparaplugns@gmail.com', 'sac@lojaispirato.com.br']
+  adminEmails: ['contaparaplugns@gmail.com', 'sac@lojaispirato.com.br'],
+  formTitle: 'Identificação do Revendedor',
+  formHelpMessage: 'Faça login com Google ou de forma Anônima no topo do aplicativo para salvar este pedido no seu histórico e acompanhar seu painel pessoal!',
+  formInvoiceLabel: 'Precisa de Nota Fiscal Eletrônica (NF-e)?',
+  formInvoiceNoLabel: 'Não (Gerar somente Recibo / Sem NF-e)',
+  formInvoiceYesLabel: 'Sim (Com Nota Fiscal Eletrônica - NF-e)',
+  paymentMethods: [
+    { id: 'pix', label: 'PIX à vista (CNPJ: 40.587.128/0001-18)', instructions: 'Após a confirmação do pedido, efetue o PIX para a chave CNPJ: 40.587.128/0001-18 (Ispirato Produtos Naturais). Envie o comprovante na sequência.', active: true },
+    { id: 'dinheiro', label: 'Dinheiro na entrega', instructions: 'O pagamento integral será conferido e efetuado em espécie no momento da entrega dos produtos na sede da revendedora.', active: true },
+    { id: 'boleto-30', label: 'Faturamento: Boleto Bancário 30 dias', instructions: 'Faturamento especial faturado para 30 dias mediante aprovação cadastral de atacado. Disponível somente para parceiros autorizados antigos.', active: true },
+    { id: 'boleto-30-60', label: 'Faturamento: Boleto Bancário Duplo (30/60 dias)', instructions: 'Faturamento em duas parcelas de boleto bancário (30 e 60 dias). Sujeito a análise prévia de crédito de CNPJ de atacado.', active: true }
+  ]
 };
 
 const SEED_PRODUCTS: Product[] = [
@@ -99,6 +110,8 @@ export default function App() {
   const [showAdminLoginModal, setShowAdminLoginModal] = useState(false);
   const [adminLoginError, setAdminLoginError] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
+  const [firestoreError, setFirestoreError] = useState<string | null>(null);
+  const [authError, setAuthError] = useState<{ code: string; message: string; domain?: string } | null>(null);
 
   // Firestore data state
   const [settings, setSettings] = useState<AppSettings>(SEED_SETTINGS);
@@ -161,23 +174,32 @@ export default function App() {
 
   const loadDatabase = async () => {
     setDataLoading(true);
+    setFirestoreError(null);
+    let settingsLoaded = false;
+    let productsLoaded = false;
+
     try {
       // 1. Fetch settings
       const settingsDocRef = doc(db, 'settings', 'global');
       let settingsDocSnap;
       try {
         settingsDocSnap = await getDoc(settingsDocRef);
+        if (settingsDocSnap && settingsDocSnap.exists()) {
+          const currentSettings = settingsDocSnap.data() as AppSettings;
+          setSettings(currentSettings);
+          settingsLoaded = true;
+        }
       } catch (err: any) {
-        handleFirestoreError(err, OperationType.GET, 'settings/global');
+        console.warn('Erro ao carregar configurações do Firestore (usando padrão local):', err);
+        if (err.message && err.message.includes('permission')) {
+          setFirestoreError('permission-error');
+        } else {
+          setFirestoreError(err.message || String(err));
+        }
       }
 
-      let currentSettings = SEED_SETTINGS;
-
-      if (settingsDocSnap && settingsDocSnap.exists()) {
-        currentSettings = settingsDocSnap.data() as AppSettings;
-        setSettings(currentSettings);
-      } else {
-        // Only seed if user is actually authenticated with Firebase as an admin to prevent write permission errors for anonymous/unauthenticated users.
+      // If settings not loaded from Firestore, use fallback and try to seed if admin
+      if (!settingsLoaded) {
         const isRealAdmin = auth.currentUser?.email === 'sac@lojaispirato.com.br' || 
                             auth.currentUser?.email === 'contaparaplugns@gmail.com';
         if (isRealAdmin) {
@@ -186,8 +208,6 @@ export default function App() {
           } catch (err: any) {
             console.warn('Unable to seed global settings client-side:', err);
           }
-        } else {
-          console.info('Global settings do not exist in Firestore yet. Using local default settings in-memory.');
         }
         setSettings(SEED_SETTINGS);
       }
@@ -197,22 +217,26 @@ export default function App() {
       let productsSnapshot;
       try {
         productsSnapshot = await getDocs(productsColRef);
+        const loadedProducts: Product[] = [];
+        if (productsSnapshot) {
+          productsSnapshot.forEach((docSnap) => {
+            loadedProducts.push({ id: docSnap.id, ...docSnap.data() } as Product);
+          });
+        }
+
+        if (loadedProducts.length > 0) {
+          setProducts(loadedProducts);
+          productsLoaded = true;
+        }
       } catch (err: any) {
-        handleFirestoreError(err, OperationType.LIST, 'products');
+        console.warn('Erro ao carregar produtos do Firestore (usando padrão local):', err);
+        if (err.message && err.message.includes('permission')) {
+          setFirestoreError('permission-error');
+        }
       }
 
-      const loadedProducts: Product[] = [];
-
-      if (productsSnapshot) {
-        productsSnapshot.forEach((docSnap) => {
-          loadedProducts.push({ id: docSnap.id, ...docSnap.data() } as Product);
-        });
-      }
-
-      if (loadedProducts.length > 0) {
-        setProducts(loadedProducts);
-      } else {
-        // Only seed if user is actually authenticated with Firebase as an admin to prevent write permission errors for anonymous/unauthenticated users.
+      // If products not loaded from Firestore, use fallback and try to seed if admin
+      if (!productsLoaded) {
         const isRealAdmin = auth.currentUser?.email === 'sac@lojaispirato.com.br' || 
                             auth.currentUser?.email === 'contaparaplugns@gmail.com';
         if (isRealAdmin) {
@@ -223,13 +247,12 @@ export default function App() {
               console.warn(`Unable to seed product ${prod.id} client-side:`, err);
             }
           }
-        } else {
-          console.info('No products found in Firestore. Using local default products in-memory.');
         }
         setProducts(SEED_PRODUCTS);
       }
+
     } catch (err) {
-      console.error('Error loading database:', err);
+      console.error('Error in loadDatabase wrapper:', err);
     } finally {
       setDataLoading(false);
     }
@@ -249,33 +272,34 @@ export default function App() {
   };
 
   const handleGoogleLogin = async () => {
+    setAuthError(null);
     try {
       await signInWithPopup(auth, googleProvider);
     } catch (err: any) {
       console.error('Google login error:', err);
       if (err.code === 'auth/popup-blocked' || err.code === 'auth/cancelled-popup-request') {
-        alert('O pop-up de autenticação foi bloqueado. Abra o aplicativo em tela cheia para fazer login.');
+        setAuthError({
+          code: err.code,
+          message: 'O pop-up de autenticação do Google foi bloqueado ou cancelado. Como o aplicativo está rodando dentro do estúdio, os navegadores podem bloquear pop-ups. Clique em "Abrir em nova aba" ou habilite os pop-ups no navegador para realizar o login do Google.'
+        });
       } else if (err.code === 'auth/unauthorized-domain') {
-        alert(
-          '⚠️ Erro de Domínio Não Autorizado!\n\n' +
-          'O domínio "ispirato-pedidos.vercel.app" precisa ser adicionado como um domínio autorizado no seu Firebase Console.\n\n' +
-          'Para resolver isso em 1 minuto:\n' +
-          '1. Acesse https://console.firebase.google.com/ e entre no seu projeto.\n' +
-          '2. No menu lateral esquerdo, clique em "Authentication".\n' +
-          '3. Clique na aba "Settings" (Configurações) no topo.\n' +
-          '4. No menu à esquerda das configurações, clique em "Authorized domains" (Domínios autorizados).\n' +
-          '5. Clique em "Add domain" (Adicionar domínio) e insira: ispirato-pedidos.vercel.app\n' +
-          '6. Clique em "Add" (Adicionar).\n\n' +
-          'Depois de fazer isso, o login funcionará instantaneamente no seu novo domínio!'
-        );
+        setAuthError({
+          code: err.code,
+          message: `O domínio "${window.location.hostname}" precisa ser adicionado aos domínios autorizados no seu Firebase Console para liberar o login com o Google.`,
+          domain: window.location.hostname
+        });
       } else {
-        alert('Falha na autenticação do Google.');
+        setAuthError({
+          code: err.code || 'unknown',
+          message: 'Falha na autenticação do Google: ' + (err.message || 'Erro de conexão/configuração.')
+        });
       }
     }
   };
 
   const handleAnonymousLogin = async () => {
     try {
+      setAuthError(null);
       await signInAnonymously(auth);
     } catch (err: any) {
       console.error('Anonymous login error:', err);
@@ -285,12 +309,16 @@ export default function App() {
       } else if (err.code === 'auth/operation-not-allowed') {
         msg = 'Operação não permitida. Verifique as configurações de autenticação no Firebase.';
       }
-      alert(msg);
+      setAuthError({
+        code: err.code || 'anonymous-error',
+        message: msg
+      });
     }
   };
 
   const handleLogout = async () => {
     try {
+      setAuthError(null);
       await signOut(auth);
       sessionStorage.removeItem('isAppAdmin');
       setIsAdmin(false);
@@ -305,12 +333,14 @@ export default function App() {
       setShowAdminPanel(!showAdminPanel);
     } else {
       setAdminLoginError('');
+      setAuthError(null);
       setShowAdminLoginModal(true);
     }
   };
 
   const handleAdminGoogleLogin = async () => {
     setAdminLoginError('');
+    setAuthError(null);
     try {
       const result = await signInWithPopup(auth, googleProvider);
       const user = result.user;
@@ -328,11 +358,20 @@ export default function App() {
     } catch (err: any) {
       console.error('Admin Google Login Error:', err);
       if (err.code === 'auth/unauthorized-domain') {
-        setAdminLoginError(
-          'Domínio Não Autorizado no Firebase! Adicione "ispirato-pedidos.vercel.app" na lista de Domínios Autorizados no menu Authentication > Settings > Authorized domains do Firebase Console para liberar o login.'
-        );
+        const errorMsg = `Domínio Não Autorizado no Firebase! Adicione "${window.location.hostname}" na lista de Domínios Autorizados no menu Authentication > Settings > Authorized domains do Firebase Console para liberar o login.`;
+        setAdminLoginError(errorMsg);
+        setAuthError({
+          code: err.code,
+          message: errorMsg,
+          domain: window.location.hostname
+        });
       } else {
-        setAdminLoginError('Erro ao entrar com Google: ' + (err.message || 'Erro desconhecido'));
+        const errorMsg = 'Erro ao entrar com Google: ' + (err.message || 'Erro desconhecido');
+        setAdminLoginError(errorMsg);
+        setAuthError({
+          code: err.code || 'unknown',
+          message: errorMsg
+        });
       }
     }
   };
@@ -429,7 +468,7 @@ export default function App() {
         status: 'pending'
       });
     } catch (err: any) {
-      handleFirestoreError(err, OperationType.CREATE, 'orders');
+      console.warn('Erro ao salvar pedido no Firestore (prosseguindo para o WhatsApp):', err);
     }
 
     const cleanNumber = settings.whatsappNumber.replace(/\D/g, '');
@@ -683,6 +722,85 @@ export default function App() {
 
         {/* Body content */}
         <div className="flex-1 p-4 md:p-6 lg:p-8 max-w-7xl mx-auto w-full">
+          {authError && (
+            <div className="mb-6 bg-rose-50 border-2 border-rose-200 rounded-2xl p-5 text-left relative animate-fade-in shadow-xs">
+              <button
+                type="button"
+                onClick={() => setAuthError(null)}
+                className="absolute top-4 right-4 p-1 rounded-lg hover:bg-rose-100 text-rose-500 hover:text-rose-700 transition-all cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+              
+              <div className="flex items-start gap-3">
+                <Info className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                <div className="space-y-2">
+                  <h4 className="text-sm font-extrabold text-rose-900">
+                    {authError.code === 'auth/unauthorized-domain' 
+                      ? '⚠️ Domínio Não Autorizado no Firebase' 
+                      : authError.code === 'auth/popup-blocked' || authError.code === 'auth/cancelled-popup-request'
+                      ? '⚠️ Pop-up de Login Bloqueado ou Cancelado'
+                      : '⚠️ Erro ao Entrar com Google'}
+                  </h4>
+                  <p className="text-xs text-slate-700 leading-relaxed font-semibold">
+                    {authError.message}
+                  </p>
+                  
+                  {authError.code === 'auth/unauthorized-domain' && (
+                    <div className="bg-white border border-rose-200/80 rounded-xl p-3.5 space-y-3 mt-1 text-slate-800">
+                      <p className="text-[11px] leading-relaxed">
+                        Por motivos de segurança, o Firebase só aceita logins de domínios cadastrados na lista de autorizados do seu projeto.
+                      </p>
+                      
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Domínio a adicionar:</label>
+                        <div className="flex items-center gap-2">
+                          <code className="bg-slate-100 text-slate-800 px-2.5 py-1.5 rounded-lg text-xs font-mono font-bold flex-1 select-all border border-slate-200">
+                            {authError.domain || window.location.hostname}
+                          </code>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText(authError.domain || window.location.hostname);
+                              alert('Copiado para a área de transferência!');
+                            }}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] px-3 py-2 rounded-lg transition-all cursor-pointer shrink-0 shadow-sm"
+                          >
+                            COPIAR
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="text-[11px] leading-relaxed space-y-1 pt-1 border-t border-slate-100">
+                        <span className="font-extrabold text-slate-900 block">Passo a passo rápido para liberar (1 minuto):</span>
+                        <ol className="list-decimal pl-4.5 space-y-1 text-slate-600 font-medium">
+                          <li>Acesse o <a href="https://console.firebase.google.com/" target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:underline inline-flex items-center gap-0.5 font-bold">Firebase Console <ExternalLink className="w-3 h-3" /></a> e selecione seu projeto.</li>
+                          <li>No menu esquerdo, vá em <span className="font-bold text-slate-800">Authentication</span>.</li>
+                          <li>Clique na aba <span className="font-bold text-slate-800">Settings</span> (Configurações) no menu superior.</li>
+                          <li>No menu esquerdo das configurações, clique em <span className="font-bold text-slate-800">Authorized domains</span> (Domínios autorizados).</li>
+                          <li>Clique em <span className="font-bold text-slate-800">Add domain</span> e cole o domínio copiado acima: <code className="font-bold font-mono text-rose-600">{authError.domain || window.location.hostname}</code></li>
+                        </ol>
+                        <p className="text-[10px] text-emerald-600 font-extrabold pt-1">
+                          ✨ Feito isso, o botão de Entrar com Google passará a funcionar imediatamente!
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {authError.code !== 'auth/unauthorized-domain' && (
+                    <div className="text-[11px] text-slate-600 font-medium leading-relaxed bg-white border border-rose-200/50 rounded-xl p-3 mt-1">
+                      <span className="font-extrabold text-slate-800 block mb-1">Dicas adicionais:</span>
+                      <ul className="list-disc pl-4 space-y-1">
+                        <li>Caso esteja no editor/iframe do estúdio, use o link <strong className="text-slate-800">"Abrir em nova aba"</strong> no canto superior direito para rodar o app em tela cheia.</li>
+                        <li>Verifique se o seu navegador não bloqueou o pop-up (geralmente aparece um ícone de bloqueio na barra de endereços).</li>
+                        <li>Certifique-se de ter ativado o método de login do Google no console do Firebase (<span className="font-bold text-slate-700">Authentication &gt; Sign-in method &gt; Google</span>).</li>
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
           {showAdminPanel ? (
             <AdminPanel 
               settings={settings}

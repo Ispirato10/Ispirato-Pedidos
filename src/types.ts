@@ -17,12 +17,26 @@ export interface Product {
   createdAt?: string;
 }
 
+export interface PaymentMethodOption {
+  id: string;
+  label: string;
+  instructions: string;
+  active?: boolean;
+}
+
 export interface AppSettings {
   whatsappNumber: string;
   minimumOrderQty: number;
   welcomeMessage: string;
   customOrderText: string;
   adminEmails: string[];
+  // Novos campos customizáveis para o formulário
+  formTitle?: string;
+  formHelpMessage?: string;
+  formInvoiceLabel?: string;
+  formInvoiceNoLabel?: string;
+  formInvoiceYesLabel?: string;
+  paymentMethods?: PaymentMethodOption[];
 }
 
 export interface OrderItem {

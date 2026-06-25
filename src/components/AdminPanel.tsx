@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Settings, Database, ClipboardList, Plus, Trash2, Edit2, Check, X, 
-  Save, Phone, Info, ShoppingBag, FileText, CheckCircle, RefreshCw, Layers, LogOut
+  Save, Phone, Info, ShoppingBag, FileText, CheckCircle, RefreshCw, Layers, LogOut, CreditCard
 } from 'lucide-react';
 import { db, auth, googleProvider, OperationType, handleFirestoreError } from '../firebase';
 import { collection, doc, setDoc, getDocs, deleteDoc, updateDoc } from 'firebase/firestore';
@@ -28,6 +28,7 @@ export default function AdminPanel({
   const [activeTab, setActiveTab] = useState<'settings' | 'products' | 'orders'>('settings');
   const [orders, setOrders] = useState<Order[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
+  const [ordersError, setOrdersError] = useState<string | null>(null);
   const [firebaseUser, setFirebaseUser] = useState(auth.currentUser);
 
   // Security check: Verify if the user should even be here
@@ -79,7 +80,22 @@ export default function AdminPanel({
   const [productError, setProductError] = useState<string | null>(null);
 
   useEffect(() => {
-    setEditSettings({ ...settings });
+    setEditSettings({
+      ...settings,
+      formTitle: settings.formTitle || 'Identificação do Revendedor',
+      formHelpMessage: settings.formHelpMessage || 'Faça login com Google ou de forma Anônima no topo do aplicativo para salvar este pedido no seu histórico e acompanhar seu painel pessoal!',
+      formInvoiceLabel: settings.formInvoiceLabel || 'Precisa de Nota Fiscal Eletrônica (NF-e)?',
+      formInvoiceNoLabel: settings.formInvoiceNoLabel || 'Não (Gerar somente Recibo / Sem NF-e)',
+      formInvoiceYesLabel: settings.formInvoiceYesLabel || 'Sim (Com Nota Fiscal Eletrônica - NF-e)',
+      paymentMethods: settings.paymentMethods && settings.paymentMethods.length > 0 
+        ? settings.paymentMethods 
+        : [
+            { id: 'pix', label: 'PIX à vista (CNPJ: 40.587.128/0001-18)', instructions: 'Após a confirmação do pedido, efetue o PIX para a chave CNPJ: 40.587.128/0001-18 (Ispirato Produtos Naturais). Envie o comprovante na sequência.', active: true },
+            { id: 'dinheiro', label: 'Dinheiro na entrega', instructions: 'O pagamento integral será conferido e efetuado em espécie no momento da entrega dos produtos na sede da revendedora.', active: true },
+            { id: 'boleto-30', label: 'Faturamento: Boleto Bancário 30 dias', instructions: 'Faturamento especial faturado para 30 dias mediante aprovação cadastral de atacado. Disponível somente para parceiros autorizados antigos.', active: true },
+            { id: 'boleto-30-60', label: 'Faturamento: Boleto Bancário Duplo (30/60 dias)', instructions: 'Faturamento em duas parcelas de boleto bancário (30 e 60 dias). Sujeito a análise prévia de crédito de CNPJ de atacado.', active: true }
+          ]
+    });
   }, [settings]);
 
   useEffect(() => {
@@ -112,8 +128,39 @@ export default function AdminPanel({
     }
   };
 
+  const handleAddPaymentMethod = () => {
+    const currentMethods = editSettings.paymentMethods || [];
+    const newMethod = {
+      id: 'opcao_' + Date.now(),
+      label: 'Nova Forma de Pagamento',
+      instructions: 'Instruções para o revendedor após escolher esta forma.',
+      active: true
+    };
+    setEditSettings({
+      ...editSettings,
+      paymentMethods: [...currentMethods, newMethod]
+    });
+  };
+
+  const handleRemovePaymentMethod = (id: string) => {
+    const currentMethods = editSettings.paymentMethods || [];
+    setEditSettings({
+      ...editSettings,
+      paymentMethods: currentMethods.filter(m => m.id !== id)
+    });
+  };
+
+  const handlePaymentMethodChange = (id: string, field: 'label' | 'instructions' | 'active', value: any) => {
+    const currentMethods = editSettings.paymentMethods || [];
+    setEditSettings({
+      ...editSettings,
+      paymentMethods: currentMethods.map(m => m.id === id ? { ...m, [field]: value } : m)
+    });
+  };
+
   const fetchOrders = async () => {
     setOrdersLoading(true);
+    setOrdersError(null);
     try {
       const querySnapshot = await getDocs(collection(db, 'orders'));
       const ordersList: Order[] = [];
@@ -124,7 +171,9 @@ export default function AdminPanel({
       ordersList.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       setOrders(ordersList);
     } catch (err: any) {
-      handleFirestoreError(err, OperationType.LIST, 'orders');
+      console.warn('Erro ao carregar pedidos do Firestore:', err);
+      setOrdersError(err.message || String(err));
+      setOrders([]);
     } finally {
       setOrdersLoading(false);
     }
@@ -300,6 +349,65 @@ export default function AdminPanel({
         </div>
       )}
 
+      {/* Central de Ajuda do Firebase para o Gestor */}
+      <div className="bg-white border-2 border-dashed border-emerald-200 p-4 sm:p-5 text-slate-700 shadow-sm max-w-7xl mx-auto mt-4 px-4 rounded-3xl">
+        <h3 className="font-extrabold text-slate-800 text-xs sm:text-sm flex items-center gap-2 mb-2">
+          <Info className="w-5 h-5 text-emerald-600 shrink-0" />
+          💡 Central de Suporte do Firebase para o Gestor Ispirato
+        </h3>
+        <p className="text-[11px] text-slate-500 font-semibold leading-relaxed mb-4">
+          Como você está usando o seu projeto Firebase pessoal (<strong className="text-slate-800">ispirato-pedidos-pwa</strong>), algumas configurações rápidas precisam ser feitas no seu Console do Firebase para liberar o funcionamento de gravação em tempo real e o login do Google.
+        </p>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Problema 1: Permissões do Firestore */}
+          <div className="bg-emerald-50/40 rounded-2xl p-4 border border-emerald-100">
+            <p className="font-extrabold text-xs text-emerald-900 mb-1 flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-500" />
+              1. Liberar Leitura e Escrita (Firestore)
+            </p>
+            <p className="text-[11px] text-slate-600 leading-relaxed mb-2.5">
+              Se os produtos do banco não puderem ser salvos, atualize as regras de segurança:
+            </p>
+            <ol className="text-[10px] sm:text-[11px] text-slate-600 space-y-1.5 list-decimal list-inside pl-1 font-semibold leading-normal">
+              <li>Acesse o <a href="https://console.firebase.google.com/" target="_blank" rel="noopener noreferrer" className="text-emerald-700 underline font-extrabold">Firebase Console</a> e selecione seu projeto.</li>
+              <li>No menu esquerdo, clique em <strong>Firestore Database</strong>.</li>
+              <li>Clique na aba <strong>Rules (Regras)</strong> no topo.</li>
+              <li>Substitua o conteúdo atual pelas regras do arquivo <code>firestore.rules</code> ou altere temporariamente para: <br /><code className="block bg-slate-100 p-1.5 rounded text-[9px] font-mono mt-1 text-slate-700">allow read, write: if true;</code></li>
+              <li>Clique em <strong>Publish (Publicar)</strong>.</li>
+            </ol>
+          </div>
+
+          {/* Problema 2: Domínio Autorizado */}
+          <div className="bg-blue-50/30 rounded-2xl p-4 border border-blue-100">
+            <p className="font-extrabold text-xs text-blue-900 mb-1 flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-blue-500" />
+              2. Liberar o Login do Google (Authentication)
+            </p>
+            <p className="text-[11px] text-slate-600 leading-relaxed mb-2.5">
+              Para corrigir o erro de domínio não autorizado (<code className="bg-blue-50 text-blue-700 text-[10px] px-1 rounded">auth/unauthorized-domain</code>):
+            </p>
+            <ol className="text-[10px] sm:text-[11px] text-slate-600 space-y-1.5 list-decimal list-inside pl-1 font-semibold leading-normal">
+              <li>No menu lateral esquerdo, clique em <strong>Authentication</strong>.</li>
+              <li>Clique na aba <strong>Settings (Configurações)</strong> no topo.</li>
+              <li>No menu à esquerda das configurações, clique em <strong>Authorized domains (Domínios autorizados)</strong>.</li>
+              <li>Clique em <strong>Add domain (Adicionar domínio)</strong> e adicione o domínio:<br />
+                <code className="bg-white border border-blue-100 px-1 py-0.5 rounded text-[9px] font-mono select-all text-blue-800">ispirato-pedidos.vercel.app</code>
+              </li>
+              <li>Adicione também o domínio do preview do estúdio:<br />
+                <code className="bg-white border border-blue-100 px-1 py-0.5 rounded text-[9px] font-mono select-all text-blue-800">ais-dev-pdwwovkddr3rextormz6f3-687343072325.us-east1.run.app</code>
+              </li>
+            </ol>
+          </div>
+        </div>
+        
+        <div className="mt-4 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
+          <span className="text-[10px] text-emerald-800 font-extrabold uppercase bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-100">
+            ✅ Bypass Ativo: Você acessou com a senha de gestor local e pode operar mesmo se o Firebase estiver desconfigurado!
+          </span>
+        </div>
+      </div>
+
       <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8 mt-4 sm:mt-6">
         
         {/* Navigation Tabs - stacked on mobile, row on desktop */}
@@ -465,6 +573,151 @@ export default function AdminPanel({
                 required
               />
               <p className="text-[11px] text-slate-500">Apenas os usuários autenticados com estes emails terão permissão para ver este painel.</p>
+            </div>
+
+            {/* Customização das mensagens do formulário de pedidos */}
+            <div className="pt-6 border-t border-slate-200/80 space-y-4">
+              <h3 className="text-sm font-black text-slate-800 flex items-center gap-2">
+                <FileText className="w-4.5 h-4.5 text-emerald-600 animate-pulse" />
+                Configurações Visuais do Formulário de Pedidos
+              </h3>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-700">Título da Seção de Identificação</label>
+                  <input
+                    type="text"
+                    className="w-full border-2 border-slate-200 focus:border-emerald-600 rounded-xl p-3 text-xs focus:outline-none transition-all font-semibold text-slate-800"
+                    value={editSettings.formTitle || ''}
+                    onChange={(e) => setEditSettings({ ...editSettings, formTitle: e.target.value })}
+                    placeholder="Identificação do Revendedor"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-700">Pergunta Nota Fiscal (NF-e)</label>
+                  <input
+                    type="text"
+                    className="w-full border-2 border-slate-200 focus:border-emerald-600 rounded-xl p-3 text-xs focus:outline-none transition-all font-semibold text-slate-800"
+                    value={editSettings.formInvoiceLabel || ''}
+                    onChange={(e) => setEditSettings({ ...editSettings, formInvoiceLabel: e.target.value })}
+                    placeholder="Precisa de Nota Fiscal Eletrônica (NF-e)?"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-700">Opção "Não" para Nota Fiscal</label>
+                  <input
+                    type="text"
+                    className="w-full border-2 border-slate-200 focus:border-emerald-600 rounded-xl p-3 text-xs focus:outline-none transition-all font-semibold text-slate-800"
+                    value={editSettings.formInvoiceNoLabel || ''}
+                    onChange={(e) => setEditSettings({ ...editSettings, formInvoiceNoLabel: e.target.value })}
+                    placeholder="Não (Gerar somente Recibo / Sem NF-e)"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-700">Opção "Sim" para Nota Fiscal</label>
+                  <input
+                    type="text"
+                    className="w-full border-2 border-slate-200 focus:border-emerald-600 rounded-xl p-3 text-xs focus:outline-none transition-all font-semibold text-slate-800"
+                    value={editSettings.formInvoiceYesLabel || ''}
+                    onChange={(e) => setEditSettings({ ...editSettings, formInvoiceYesLabel: e.target.value })}
+                    placeholder="Sim (Com Nota Fiscal Eletrônica - NF-e)"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-700">Mensagem informativa (Banner acima do formulário)</label>
+                <textarea
+                  className="w-full border-2 border-slate-200 focus:border-emerald-600 rounded-xl p-3 text-xs focus:outline-none transition-all h-20 font-semibold leading-relaxed text-slate-800"
+                  value={editSettings.formHelpMessage || ''}
+                  onChange={(e) => setEditSettings({ ...editSettings, formHelpMessage: e.target.value })}
+                  placeholder="Faça login com Google ou de forma Anônima no topo do aplicativo para salvar este pedido no seu histórico e acompanhar seu painel pessoal!"
+                />
+              </div>
+            </div>
+
+            {/* Gerenciamento das Formas de Pagamento */}
+            <div className="pt-6 border-t border-slate-200/80 space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-black text-slate-800 flex items-center gap-2">
+                  <CreditCard className="w-4.5 h-4.5 text-emerald-600" />
+                  Gerenciador de Formas de Pagamento
+                </h3>
+                <button
+                  type="button"
+                  onClick={handleAddPaymentMethod}
+                  className="bg-emerald-50 hover:bg-emerald-100 border-2 border-emerald-200/60 text-emerald-800 font-extrabold text-[10px] px-3.5 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-sm"
+                >
+                  <Plus className="w-3.5 h-3.5" /> ADICIONAR NOVO
+                </button>
+              </div>
+
+              <div className="space-y-3.5">
+                {(editSettings.paymentMethods || []).map((method, index) => (
+                  <div key={method.id} className="bg-slate-50 border border-slate-200 rounded-2xl p-4 relative space-y-3">
+                    <button
+                      type="button"
+                      onClick={() => handleRemovePaymentMethod(method.id)}
+                      className="absolute top-3.5 right-3.5 text-rose-500 hover:text-rose-700 p-1.5 bg-white hover:bg-rose-50 border border-slate-200 rounded-lg transition-all cursor-pointer"
+                      title="Remover forma de pagamento"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+
+                    <div className="flex items-center gap-3 pr-10">
+                      <span className="text-[10px] font-black uppercase text-slate-400 bg-slate-200/60 px-2 py-0.5 rounded">
+                        Forma #{index + 1} ({method.id})
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handlePaymentMethodChange(method.id, 'active', !(method.active !== false))}
+                        className={`flex items-center gap-1.5 text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-lg border transition-all cursor-pointer ${
+                          method.active !== false 
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200/60 hover:bg-emerald-100' 
+                            : 'bg-slate-100 text-slate-500 border-slate-300/60 hover:bg-slate-200'
+                        }`}
+                      >
+                        <span className={`w-1.5 h-1.5 rounded-full ${method.active !== false ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
+                        {method.active !== false ? 'Ativado' : 'Desativado'}
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-600">Título / Nome (exibido na seleção) *</label>
+                        <input
+                          type="text"
+                          className="w-full border border-slate-200 focus:border-emerald-600 rounded-lg p-2.5 text-xs focus:outline-none transition-all font-semibold text-slate-800"
+                          value={method.label}
+                          onChange={(e) => handlePaymentMethodChange(method.id, 'label', e.target.value)}
+                          placeholder="PIX à vista (CNPJ: ...)"
+                          required
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-600">Instruções de pagamento (exibidas após seleção) *</label>
+                        <textarea
+                          className="w-full border border-slate-200 focus:border-emerald-600 rounded-lg p-2.5 text-xs focus:outline-none transition-all h-16 font-semibold text-slate-700 leading-relaxed"
+                          value={method.instructions}
+                          onChange={(e) => handlePaymentMethodChange(method.id, 'instructions', e.target.value)}
+                          placeholder="Instruções de como o cliente realiza o pagamento..."
+                          required
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                
+                {(editSettings.paymentMethods || []).length === 0 && (
+                  <p className="text-xs text-slate-400 text-center py-4 bg-slate-50 border border-dashed border-slate-200 rounded-2xl">
+                    Nenhuma forma de pagamento personalizada configurada. Usando as 4 originais do sistema.
+                  </p>
+                )}
+              </div>
             </div>
 
             <div className="pt-6 border-t border-slate-100">
@@ -754,6 +1007,19 @@ export default function AdminPanel({
                 <RefreshCw className={`w-4 h-4 ${ordersLoading ? 'animate-spin' : ''}`} />
               </button>
             </div>
+
+            {ordersError && (
+              <div className="mb-4 p-4 bg-rose-50 border border-rose-100 rounded-2xl text-rose-700 text-xs">
+                <p className="font-bold flex items-center gap-1.5 mb-1">
+                  <Info className="w-4 h-4 shrink-0" />
+                  Falha nas permissões do banco de dados (Firestore)
+                </p>
+                <p className="text-[11px] leading-relaxed">
+                  Não foi possível ler os pedidos do Firestore do seu projeto. Certifique-se de que as regras de segurança do seu Firebase Console permitem a leitura. Veja o banner de ajuda acima para resolver em 1 minuto.
+                </p>
+                <p className="text-[10px] text-rose-500 font-mono mt-1">Detalhe: {ordersError}</p>
+              </div>
+            )}
 
             {ordersLoading ? (
               <p className="text-xs text-slate-400 text-center py-10">Buscando pedidos no Firebase...</p>

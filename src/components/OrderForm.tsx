@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { User, Mail, CreditCard, FileText, Info, AlertTriangle, Send } from 'lucide-react';
-import { AppSettings } from '../types';
+import { AppSettings, PaymentMethodOption } from '../types';
 
 interface OrderFormProps {
   settings: AppSettings;
@@ -14,6 +14,13 @@ interface OrderFormProps {
     needsInvoice: boolean;
   }) => void;
 }
+
+const DEFAULT_PAYMENT_METHODS: PaymentMethodOption[] = [
+  { id: 'pix', label: 'PIX à vista (CNPJ: 40.587.128/0001-18)', instructions: 'Após a confirmação do pedido, efetue o PIX para a chave CNPJ: 40.587.128/0001-18 (Ispirato Produtos Naturais). Envie o comprovante na sequência.', active: true },
+  { id: 'dinheiro', label: 'Dinheiro na entrega', instructions: 'O pagamento integral será conferido e efetuado em espécie no momento da entrega dos produtos na sede da revendedora.', active: true },
+  { id: 'boleto-30', label: 'Faturamento: Boleto Bancário 30 dias', instructions: 'Faturamento especial faturado para 30 dias mediante aprovação cadastral de atacado. Disponível somente para parceiros autorizados antigos.', active: true },
+  { id: 'boleto-30-60', label: 'Faturamento: Boleto Bancário Duplo (30/60 dias)', instructions: 'Faturamento em duas parcelas de boleto bancário (30 e 60 dias). Sujeito a análise prévia de crédito de CNPJ de atacado.', active: true }
+];
 
 export default function OrderForm({ settings, totalQuantity, totalValue, currentUser, onSubmit }: OrderFormProps) {
   const [name, setName] = useState('');
@@ -43,11 +50,17 @@ export default function OrderForm({ settings, totalQuantity, totalValue, current
 
   const isMinMet = totalQuantity >= settings.minimumOrderQty;
 
+  const paymentMethodsList = (settings.paymentMethods && settings.paymentMethods.length > 0 
+    ? settings.paymentMethods 
+    : DEFAULT_PAYMENT_METHODS).filter(method => method.active !== false);
+
+  const selectedPaymentInfo = paymentMethodsList.find(m => m.id === paymentMethod);
+
   return (
     <form onSubmit={handleSubmit} className="bg-white rounded-xl p-5 shadow-xs border border-slate-200 text-left">
       <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2 mb-3 border-b border-slate-100 pb-2">
         <User className="text-emerald-600 w-4.5 h-4.5" />
-        Identificação do Revendedor
+        {settings.formTitle || 'Identificação do Revendedor'}
       </h2>
 
       {currentUser ? (
@@ -57,7 +70,11 @@ export default function OrderForm({ settings, totalQuantity, totalValue, current
         </div>
       ) : (
         <div className="bg-slate-50 text-slate-500 border border-slate-200/60 rounded-lg p-2.5 mb-4 text-[10px] font-semibold leading-relaxed">
-          💡 Faça login com <span className="font-extrabold text-emerald-600">Google</span> ou de forma <span className="font-extrabold text-[#0F172A]">Anônima</span> no topo do aplicativo para salvar este pedido no seu histórico e acompanhar seu painel pessoal!
+          {settings.formHelpMessage || (
+            <>
+              💡 Faça login com <span className="font-extrabold text-emerald-600">Google</span> ou de forma <span className="font-extrabold text-[#0F172A]">Anônima</span> no topo do aplicativo para salvar este pedido no seu histórico e acompanhar seu painel pessoal!
+            </>
+          )}
         </div>
       )}
 
@@ -107,10 +124,11 @@ export default function OrderForm({ settings, totalQuantity, totalValue, current
             required
           >
             <option value="" className="font-semibold text-slate-400">Escolha a condição de faturamento</option>
-            <option value="pix" className="font-bold text-slate-800">PIX à vista (CNPJ: 40.587.128/0001-18)</option>
-            <option value="dinheiro" className="font-semibold text-slate-800">Dinheiro na entrega</option>
-            <option value="boleto-30" className="font-semibold text-slate-800">Faturamento: Boleto Bancário 30 days</option>
-            <option value="boleto-30-60" className="font-semibold text-slate-800">Faturamento: Boleto Bancário Duplo (30/60 dias)</option>
+            {paymentMethodsList.map((method) => (
+              <option key={method.id} value={method.id} className="font-bold text-slate-800">
+                {method.label}
+              </option>
+            ))}
           </select>
         </div>
 
@@ -118,7 +136,7 @@ export default function OrderForm({ settings, totalQuantity, totalValue, current
         <div className="space-y-1 text-left">
           <label className="text-[11px] font-bold text-slate-700 flex items-center gap-1.5">
             <FileText className="w-3.5 h-3.5 text-emerald-600" />
-            Precisa de Nota Fiscal Eletrônica (NF-e)? *
+            {settings.formInvoiceLabel || 'Precisa de Nota Fiscal Eletrônica (NF-e)?'} *
           </label>
           <select
             className="w-full border border-slate-200 focus:border-emerald-600 rounded-lg p-2.5 text-xs focus:outline-none transition-all focus:ring-2 focus:ring-emerald-500/10 font-bold text-slate-800 bg-white"
@@ -126,28 +144,24 @@ export default function OrderForm({ settings, totalQuantity, totalValue, current
             onChange={(e) => setNeedsInvoice(e.target.value === 'sim')}
             required
           >
-            <option value="nao" className="font-semibold text-slate-800">Não (Gerar somente Recibo / Sem NF-e)</option>
-            <option value="sim" className="font-semibold text-slate-800">Sim (Com Nota Fiscal Eletrônica - NF-e)</option>
+            <option value="nao" className="font-semibold text-slate-800">
+              {settings.formInvoiceNoLabel || 'Não (Gerar somente Recibo / Sem NF-e)'}
+            </option>
+            <option value="sim" className="font-semibold text-slate-800">
+              {settings.formInvoiceYesLabel || 'Sim (Com Nota Fiscal Eletrônica - NF-e)'}
+            </option>
           </select>
         </div>
 
         {/* Payment instructions */}
-        {paymentMethod && (
+        {paymentMethod && selectedPaymentInfo && (
           <div className="p-3 bg-emerald-50/50 border-l-2 border-emerald-600 rounded-lg text-left space-y-1 animate-fade-in">
             <div className="flex items-center gap-1 font-bold text-emerald-900 text-[10px]">
               <Info className="w-3.5 h-3.5 text-emerald-600" />
               Condições da Forma Selecionada:
             </div>
             <p className="text-[10px] text-slate-600 leading-relaxed">
-              {paymentMethod === 'pix' ? (
-                <span>Após a confirmação do pedido, efetue o PIX para a chave CNPJ: <strong className="text-slate-800">40.587.128/0001-18</strong> (Ispirato Produtos Naturais). Envie o comprovante na sequência.</span>
-              ) : paymentMethod === 'dinheiro' ? (
-                <span>O pagamento integral será conferido e efetuado em espécie no momento da entrega dos produtos na sede da revendedora.</span>
-              ) : paymentMethod === 'boleto-30' ? (
-                <span>Faturamento especial faturado para 30 dias mediante aprovação cadastral de atacado. Disponível somente para parceiros autorizados antigos.</span>
-              ) : (
-                <span>Faturamento em duas parcelas de boleto bancário (30 e 60 dias). Sujeito a análise prévia de crédito de CNPJ de atacado.</span>
-              )}
+              <span>{selectedPaymentInfo.instructions}</span>
             </p>
           </div>
         )}
