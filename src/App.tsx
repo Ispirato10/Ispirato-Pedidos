@@ -98,6 +98,7 @@ export default function App() {
   const [showMyOrders, setShowMyOrders] = useState(false);
   const [showAdminLoginModal, setShowAdminLoginModal] = useState(false);
   const [adminLoginError, setAdminLoginError] = useState('');
+  const [adminPassword, setAdminPassword] = useState('');
 
   // Firestore data state
   const [settings, setSettings] = useState<AppSettings>(SEED_SETTINGS);
@@ -333,6 +334,22 @@ export default function App() {
       } else {
         setAdminLoginError('Erro ao entrar com Google: ' + (err.message || 'Erro desconhecido'));
       }
+    }
+  };
+
+  const handleAdminPasswordLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    setAdminLoginError('');
+    if (adminPassword.trim() === 'ispirato2026') {
+      setIsAdmin(true);
+      sessionStorage.setItem('isAppAdmin', 'true');
+      setShowAdminLoginModal(false);
+      setShowAdminPanel(true);
+      setAdminPassword('');
+    } else if (!adminPassword) {
+      setAdminLoginError('Por favor, insira a senha de administrador.');
+    } else {
+      setAdminLoginError('Senha de administrador incorreta.');
     }
   };
 
@@ -954,27 +971,57 @@ export default function App() {
                 Para configurar o pedido mínimo, novos lotes ou gerenciar os produtos, identifique-se abaixo com suas credenciais:
               </p>
 
-              {/* Login Button */}
+              {/* Login Options */}
               <div className="space-y-4">
                 <button
                   onClick={handleAdminGoogleLogin}
-                  className="w-full py-3 px-4 bg-white border-2 border-slate-100 hover:border-emerald-500 hover:bg-emerald-50 text-slate-700 font-extrabold text-xs rounded-xl shadow-sm transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-2 group"
+                  className="w-full py-2.5 px-4 bg-white border-2 border-slate-100 hover:border-emerald-500 hover:bg-emerald-50 text-slate-700 font-extrabold text-xs rounded-xl shadow-sm transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-2 group"
                 >
                   <img src="https://www.google.com/favicon.ico" alt="Google" className="w-4 h-4 group-hover:scale-110 transition-transform" />
                   ENTRAR COM GOOGLE ADMIN
                 </button>
 
-                <p className="text-[10px] text-slate-400 text-center font-medium leading-relaxed">
-                  Identifique-se com a conta <strong>contaparaplugns@gmail.com</strong> para liberar as funções de edição.
+                <p className="text-[10px] text-slate-400 text-center font-semibold leading-relaxed">
+                  Identifique-se com a conta <strong>contaparaplugns@gmail.com</strong>
                 </p>
+
+                {/* Divider */}
+                <div className="relative flex py-1 items-center">
+                  <div className="flex-grow border-t border-slate-100"></div>
+                  <span className="flex-shrink mx-3 text-[9px] text-slate-400 font-black uppercase tracking-wider">ou por senha</span>
+                  <div className="flex-grow border-t border-slate-100"></div>
+                </div>
+
+                {/* Password Form Bypass */}
+                <form onSubmit={handleAdminPasswordLogin} className="space-y-3">
+                  <div>
+                    <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1">
+                      Senha do Administrador
+                    </label>
+                    <input
+                      type="password"
+                      value={adminPassword}
+                      onChange={(e) => setAdminPassword(e.target.value)}
+                      placeholder="Digite a senha..."
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:bg-white rounded-xl text-xs font-bold outline-none transition-all"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    className="w-full py-2.5 bg-emerald-800 hover:bg-emerald-950 text-white font-extrabold text-xs rounded-xl shadow-md transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    ACESSAR COMO GESTOR
+                  </button>
+                </form>
 
                 {/* Error message */}
                 {adminLoginError && (
                   <div className="p-3 bg-rose-50 border border-rose-100 text-rose-700 rounded-lg text-[10px] sm:text-[11px] font-bold leading-relaxed">
-                    <p className="flex items-center gap-1.5">
-                      <Info className="w-3.5 h-3.5 shrink-0" />
+                    <div className="flex items-start gap-1.5">
+                      <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
                       <span>{adminLoginError}</span>
-                    </p>
+                    </div>
                   </div>
                 )}
               </div>
