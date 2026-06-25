@@ -1,0 +1,244 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+/* Custom PWA and WhatsApp exploding icons styling from the user request */
+@keyframes neonGlow {
+  0% {
+    box-shadow: 0 0 5px rgba(16, 185, 129, 0.8), 0 0 10px rgba(52, 211, 153, 0.6);
+  }
+  100% {
+    box-shadow: 0 0 15px rgba(16, 185, 129, 1), 0 0 30px rgba(52, 211, 153, 0.8);
+  }
+}
+
+@keyframes animate1 {
+  0% { left: -100%; }
+  50%, 100% { left: 100%; }
+}
+@keyframes animate2 {
+  0% { top: -100%; }
+  50%, 100% { top: 100%; }
+}
+@keyframes animate3 {
+  0% { right: -100%; }
+  50%, 100% { right: 100%; }
+}
+@keyframes animate4 {
+  0% { bottom: -100%; }
+  50%, 100% { bottom: 100%; }
+}
+
+@keyframes whatsapp-fountain {
+  0% { 
+    transform: translate(-50%, -50%) scale(0.5);
+    opacity: 0.8;
+  }
+  100% { 
+    transform: translate(-50%, -50%) scale(4);
+    opacity: 0;
+  }
+}
+
+.submit-button {
+  width: 100%;
+  padding: 1.5rem 2rem;
+  background: linear-gradient(135deg, #047857 0%, #059669 100%);
+  color: white;
+  border: none;
+  border-radius: 20px;
+  font-size: 1.25rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.5s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  box-shadow: 0 0 10px rgba(4, 120, 87, 0.8), 0 0 20px rgba(5, 150, 105, 0.6);
+  animation: neonGlow 1.5s infinite alternate;
+  position: relative;
+  overflow: hidden;
+}
+
+.submit-button:hover:not(:disabled) {
+  transform: scale(1.02);
+  box-shadow: 0 0 20px rgba(4, 120, 87, 1), 0 0 40px rgba(5, 150, 105, 0.8);
+  animation: none;
+}
+
+.submit-button:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.submit-button:disabled {
+  background: linear-gradient(135deg, #94a3b8 0%, #64748b 100%);
+  cursor: not-allowed;
+  box-shadow: none;
+  animation: none;
+}
+
+.submit-button i, .submit-button svg {
+  font-size: 1.5rem;
+  position: relative; 
+  z-index: 10; 
+}
+
+.submit-button span {
+  position: absolute;
+  display: block;
+  z-index: 5; 
+}
+
+.submit-button:not(:disabled) span:nth-child(1) {
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 4px;
+  background: linear-gradient(90deg, transparent, #34d399, transparent);
+  animation: animate1 1.5s linear infinite;
+}
+
+.submit-button:not(:disabled) span:nth-child(2) {
+  top: -100%;
+  right: 0;
+  width: 4px;
+  height: 100%;
+  background: linear-gradient(180deg, transparent, #34d399, transparent);
+  animation: animate2 1.5s linear infinite;
+  animation-delay: 0.35s;
+}
+
+.submit-button:not(:disabled) span:nth-child(3) {
+  bottom: 0;
+  right: 0;
+  width: 100%;
+  height: 4px;
+  background: linear-gradient(270deg, transparent, #34d399, transparent);
+  animation: animate3 1.5s linear infinite;
+  animation-delay: 0.7s;
+}
+
+.submit-button:not(:disabled) span:nth-child(4) {
+  bottom: -100%;
+  left: 0;
+  width: 4px;
+  height: 100%;
+  background: linear-gradient(360deg, transparent, #34d399, transparent);
+  animation: animate4 1.5s linear infinite;
+  animation-delay: 1.05s;
+}
+
+/* 20 WhatsApp icon explosion effects */
+.submit-button::before,
+.submit-button::after {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-family: 'Font Awesome 6 Brands'; 
+  font-weight: 900; 
+  color: white; 
+  pointer-events: none;
+  z-index: 2; 
+  content: "\f232";
+  opacity: 0;
+}
+
+.submit-button::before {
+  font-size: 20px; 
+  text-shadow: 
+    15px 15px 0 white,   /* Icon 1 */
+    -20px 10px 0 white,  /* Icon 2 */
+    25px -15px 0 white,  /* Icon 3 */
+    -10px -25px 0 white, /* Icon 4 */
+    35px 5px 0 white,    /* Icon 5 */
+    -30px 30px 0 white,  /* Icon 6 */
+    -10px -10px 0 white, /* Icon 7 */
+    20px -20px 0 white,  /* Icon 8 */
+    -5px 30px 0 white,   /* Icon 9 */
+    30px 10px 0 white;   /* Icon 10 */
+}
+
+.submit-button:not(:disabled)::before {
+  animation: 
+    whatsapp-fountain 2.5s infinite ease-out,
+    whatsapp-fountain 3.5s infinite ease-out 0.6s,
+    whatsapp-fountain 3s infinite ease-out 1.2s;
+}
+
+.submit-button::after {
+  font-size: 16px; 
+  text-shadow: 
+    -25px 15px 0 white,  /* Icon 11 */
+    10px -20px 0 white,  /* Icon 12 */
+    -15px -15px 0 white, /* Icon 13 */
+    30px 20px 0 white,   /* Icon 14 */
+    -40px 5px 0 white,   /* Icon 15 */
+    20px 30px 0 white,   /* Icon 16 */
+    -5px 25px 0 white,   /* Icon 17 */
+    -30px -20px 0 white, /* Icon 18 */
+    15px -30px 0 white,  /* Icon 19 */
+    -20px 10px 0 white;  /* Icon 20 */
+}
+
+.submit-button:not(:disabled)::after {
+  animation: 
+    whatsapp-fountain 3s infinite ease-out 0.3s,
+    whatsapp-fountain 2.2s infinite ease-out 0.9s,
+    whatsapp-fountain 4s infinite ease-out 1.5s;
+}
+
+.submit-button:disabled::before,
+.submit-button:disabled::after {
+  animation: none;
+  opacity: 0;
+  content: none !important; 
+  text-shadow: none;
+}
+
+@keyframes animate-spin-slow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin-slow {
+  animation: animate-spin-slow 8s linear infinite;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}
+
+.animate-shake {
+  animation: shake 0.5s ease-in-out;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.4s ease-out forwards;
+}
+
+/* Hide scrollbar for Chrome, Safari and Opera */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+/* Hide scrollbar for IE, Edge and Firefox */
+.no-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+

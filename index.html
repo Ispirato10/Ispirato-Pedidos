@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Ispirato - Revenda de Produtos Naturais</title>
+    
+    <!-- PWA Meta Tags -->
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#2d5016" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="apple-touch-icon" href="/icon-192.png" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Ispirato - Revenda de Produtos Naturais" />
+    <meta property="og:description" content="Portal oficial de pedidos para revendedores de produtos naturais Ispirato." />
+    <meta property="og:image" content="/share.jpg" />
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:title" content="Ispirato - Revenda de Produtos Naturais" />
+    <meta property="twitter:description" content="Portal oficial de pedidos para revendedores de produtos naturais Ispirato." />
+    <meta property="twitter:image" content="/share.jpg" />
+
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  </head>
+  <body class="bg-gray-50 text-gray-900 antialiased selection:bg-emerald-200 selection:text-emerald-900">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          // register with updateViaCache: 'none' to bypass browser HTTP caching of sw.js entirely
+          navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' })
+            .then(reg => {
+              console.log('Service Worker registrado com sucesso:', reg.scope);
+              
+              // Immediate check for updates on startup
+              reg.update().catch(err => console.log('Erro na checagem inicial do SW:', err));
+
+              // Active check when user returns or brings page to the foreground
+              document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'visible') {
+                  reg.update().catch(err => console.log('Erro ao atualizar SW em visibilidade:', err));
+                }
+              });
+
+              // Periodic background update check every 5 minutes
+              setInterval(() => {
+                reg.update().catch(err => console.log('Erro ao atualizar SW periodicamente:', err));
+              }, 5 * 60 * 1000);
+              
+              // Se houver uma atualização pendente (no estado waiting)
+              if (reg.waiting) {
+                reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+              }
+
+              // Monitora novos service workers que chegam
+              reg.addEventListener('updatefound', () => {
+                const newWorker = reg.installing;
+                if (newWorker) {
+                  newWorker.addEventListener('statechange', () => {
+                    if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                      // Novo service worker instalado com sucesso. Avisa para pular o waiting e recarregar
+                      newWorker.postMessage({ type: 'SKIP_WAITING' });
+                    }
+                  });
+                }
+              });
+            })
+            .catch(err => console.error('Falha ao registrar o Service Worker:', err));
+
+          // Recarrega a página assim que o novo service worker assumir o controle (controllerchange)
+          let refreshing = false;
+          navigator.serviceWorker.addEventListener('controllerchange', () => {
+            if (!refreshing) {
+              refreshing = true;
+              window.location.reload();
+            }
+          });
+        });
+      }
+    </script>
+  </body>
+</html>
+

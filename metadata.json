@@ -1,0 +1,6 @@
+{
+  "name": "Ispirato - Revenda de Produtos Naturais",
+  "description": "App oficial de faturamento e faturamento escalonado de produtos naturais para revendedores Ispirato.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

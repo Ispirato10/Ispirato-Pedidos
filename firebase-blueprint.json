@@ -1,0 +1,49 @@
+{
+  "collections": {
+    "settings": {
+      "schema": {
+        "whatsappNumber": { "type": "string", "description": "WhatsApp contact number for ordering" },
+        "minimumOrderQty": { "type": "number", "description": "Minimum units required per order" },
+        "welcomeMessage": { "type": "string", "description": "Elegant greeting text shown at the top of the app" },
+        "customOrderText": { "type": "string", "description": "Configurable format for the WhatsApp message layout" },
+        "adminEmails": { "type": "array", "description": "Emails of administrators allowed to configure settings" }
+      }
+    },
+    "products": {
+      "schema": {
+        "id": { "type": "string", "description": "SKU code" },
+        "name": { "type": "string", "description": "Name of the product" },
+        "description": { "type": "string", "description": "Product benefits and application details" },
+        "image": { "type": "string", "description": "HTTPS URL of the product image" },
+        "prices": {
+          "type": "object",
+          "properties": {
+            "base": { "type": "number" },
+            "bulk12": { "type": "number" },
+            "bulk500": { "type": "number" }
+          }
+        },
+        "icon": { "type": "string" },
+        "minQty": { "type": "number" },
+        "active": { "type": "boolean" },
+        "category": { "type": "string" },
+        "createdAt": { "type": "string" }
+      }
+    },
+    "orders": {
+      "schema": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "items": { "type": "array" },
+        "total": { "type": "number" },
+        "totalQuantity": { "type": "number" },
+        "paymentMethod": { "type": "string" },
+        "needsInvoice": { "type": "boolean" },
+        "status": { "type": "string" }
+      }
+    }
+  }
+}

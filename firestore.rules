@@ -1,0 +1,37 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper to check if user is an admin
+    function isAdmin() {
+      return request.auth != null && 
+        (
+          request.auth.token.email == "contaparaplugns@gmail.com" ||
+          request.auth.token.email == "sac@lojaispirato.com.br"
+        );
+    }
+
+    // Settings Collection rules
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Products Collection rules
+    match /products/{productId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Orders Collection rules
+    match /orders/{orderId} {
+      allow read: if request.auth != null && (
+        request.auth.uid == resource.data.userId || 
+        isAdmin()
+      );
+      allow create: if true; // Allow anonymous or logged in users to submit orders
+      allow update, delete: if isAdmin();
+    }
+  }
+}
