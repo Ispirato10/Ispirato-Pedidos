@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Download, Monitor, Smartphone, Share2, X, PlusSquare } from 'lucide-react';
+import { Download, Smartphone, Share2, X, PlusSquare, Info, MoreVertical } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface BeforeInstallPromptEvent extends Event {
@@ -16,7 +16,18 @@ export default function PWAPrompt() {
   const [showPrompt, setShowPrompt] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
-  const [showGuide, setShowGuide] = useState(false);
+  const [showIOSGuide, setShowIOSGuide] = useState(false);
+  const [showAndroidGuide, setShowAndroidGuide] = useState(false);
+
+  useEffect(() => {
+    const handleOpenPrompt = () => {
+      setShowPrompt(true);
+    };
+    window.addEventListener('open-pwa-prompt', handleOpenPrompt);
+    return () => {
+      window.removeEventListener('open-pwa-prompt', handleOpenPrompt);
+    };
+  }, []);
 
   useEffect(() => {
     // Check if app is already running as PWA (standalone)
@@ -28,20 +39,30 @@ export default function PWAPrompt() {
     const iOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
     setIsIOS(iOS);
 
+    // Only show if not installed and not dismissed in this session
+    const isDismissed = sessionStorage.getItem('pwa_prompt_dismissed') === 'true';
+
     // Listen for the beforeinstallprompt event
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);
-      // Automatically show suggestion banner after 3 seconds if not standalone
-      if (!isPWA) {
-        const timer = setTimeout(() => {
+      
+      if (!isPWA && !isDismissed) {
+        setTimeout(() => {
           setShowPrompt(true);
-        }, 3000);
-        return () => clearTimeout(timer);
+        }, 2500);
       }
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    // Fallback trigger: if event doesn't fire but we are not standalone and not dismissed, show it anyway!
+    if (!isPWA && !isDismissed) {
+      const timer = setTimeout(() => {
+        setShowPrompt(true);
+      }, 3500);
+      return () => clearTimeout(timer);
+    }
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
@@ -50,6 +71,7 @@ export default function PWAPrompt() {
 
   const handleInstallClick = async () => {
     if (deferredPrompt) {
+      // Use native installation prompt
       await deferredPrompt.prompt();
       const { outcome } = await deferredPrompt.userChoice;
       if (outcome === 'accepted') {
@@ -57,8 +79,17 @@ export default function PWAPrompt() {
         setShowPrompt(false);
       }
     } else if (isIOS) {
-      setShowGuide(true);
+      // Show iOS step-by-step guide
+      setShowIOSGuide(true);
+    } else {
+      // Fallback guide for Android/Chrome when beforeinstallprompt did not fire
+      setShowAndroidGuide(true);
     }
+  };
+
+  const handleDismiss = () => {
+    sessionStorage.setItem('pwa_prompt_dismissed', 'true');
+    setShowPrompt(false);
   };
 
   // If already installed, don't show prompt
@@ -67,51 +98,57 @@ export default function PWAPrompt() {
   return (
     <>
       <AnimatePresence>
-        {showPrompt && !showGuide && (
+        {showPrompt && !showIOSGuide && !showAndroidGuide && (
           <motion.div
-            initial={{ opacity: 0, y: 50 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 50 }}
-            className="fixed bottom-20 lg:bottom-6 left-1/2 -translate-x-1/2 z-50 w-[92%] max-w-md bg-white border border-slate-200 rounded-xl shadow-xl p-4 overflow-hidden text-left"
+            initial={{ opacity: 0, y: 50, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 50, scale: 0.95 }}
+            className="fixed bottom-22 sm:bottom-6 left-1/2 -translate-x-1/2 z-50 w-[94%] max-w-md bg-white border border-emerald-100 rounded-2xl shadow-2xl p-4 overflow-hidden text-left"
           >
-            {/* Ambient Background decoration */}
-            <div className="absolute top-0 right-0 w-32 h-32 bg-blue-50/50 rounded-full blur-2xl -z-10" />
+            {/* Elegant Background Glow */}
+            <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-50/60 rounded-full blur-2xl -z-10" />
+            <div className="absolute bottom-0 left-0 w-24 h-24 bg-amber-50/40 rounded-full blur-xl -z-10" />
 
-            <div className="flex justify-between items-start mb-2.5">
-              <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 bg-[#0F172A] rounded-lg flex items-center justify-center text-blue-400 shadow-sm">
-                  <Download className="w-5 h-5 animate-bounce" />
+            <div className="flex justify-between items-start mb-2.5 relative z-10">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-emerald-800 rounded-xl flex items-center justify-center p-0.5 shadow-md border border-amber-500/20 shrink-0">
+                  <img 
+                    src="/favicon.png" 
+                    alt="Ispirato Logo" 
+                    className="w-full h-full object-cover rounded-lg"
+                    referrerPolicy="no-referrer"
+                  />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-slate-900">Leve o app no seu bolso</h3>
-                  <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">Ispirato Produtos Naturais</p>
+                  <h3 className="text-[13px] font-black text-slate-900 leading-tight">Instalar Aplicativo</h3>
+                  <p className="text-[9px] text-emerald-800 font-extrabold uppercase tracking-wider">Ispirato • Pedidos</p>
                 </div>
               </div>
               <button 
-                onClick={() => setShowPrompt(false)}
-                className="p-1 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-all"
+                onClick={handleDismiss}
+                className="p-1 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-all cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <p className="text-slate-600 text-xs mb-3 leading-relaxed">
-              Adicione o app de revendedor à sua tela inicial para fazer pedidos rápidos com <strong>um clique</strong>, sem navegador!
+            <p className="text-slate-600 text-xs mb-3.5 leading-relaxed relative z-10 font-medium">
+              Tenha uma experiência muito mais rápida e segura! Faça pedidos com <strong>um clique</strong> diretamente da sua tela inicial.
             </p>
 
-            <div className="flex gap-2">
+            <div className="flex gap-2 relative z-10">
               <button
-                onClick={() => setShowPrompt(false)}
-                className="flex-1 py-2 text-xs font-semibold text-slate-500 rounded-lg hover:bg-slate-50 transition-all border border-slate-200"
+                onClick={handleDismiss}
+                className="flex-1 py-2.5 text-xs font-bold text-slate-500 rounded-xl hover:bg-slate-50 transition-all border border-slate-200 cursor-pointer"
               >
-                Depois
+                Agora Não
               </button>
               <button
                 onClick={handleInstallClick}
-                className="flex-2 py-2 px-3 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm transition-all flex items-center justify-center gap-1.5"
+                className="flex-[1.5] py-2.5 px-4 text-xs font-extrabold text-white bg-emerald-800 hover:bg-emerald-950 rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer border border-emerald-900"
               >
-                {isIOS ? <Smartphone className="w-3.5 h-3.5" /> : <Monitor className="w-3.5 h-3.5" />}
-                Instalar Agora
+                <Download className="w-3.5 h-3.5 animate-pulse" />
+                Instalar Grátis
               </button>
             </div>
           </motion.div>
@@ -120,70 +157,158 @@ export default function PWAPrompt() {
 
       {/* iOS Installation Guide Modal */}
       <AnimatePresence>
-        {showGuide && (
-          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+        {showIOSGuide && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white rounded-xl w-full max-w-md p-5 shadow-xl relative overflow-hidden text-left"
+              className="bg-white rounded-2xl w-full max-w-sm p-5 shadow-2xl relative overflow-hidden text-left border border-slate-100"
             >
-              <div className="absolute top-0 right-0 w-36 h-36 bg-blue-50/40 rounded-full blur-3xl -z-10" />
+              <div className="absolute top-0 right-0 w-36 h-36 bg-emerald-50/40 rounded-full blur-3xl -z-10" />
 
               <div className="flex justify-between items-center mb-4">
-                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
-                  <Smartphone className="text-blue-600 w-4 h-4" />
-                  Instalar no iOS (iPhone/iPad)
-                </h3>
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-800">
+                    <Smartphone className="w-4 h-4" />
+                  </div>
+                  <h3 className="text-sm font-black text-slate-900">
+                    Instalar no iOS (Safari)
+                  </h3>
+                </div>
                 <button
-                  onClick={() => setShowGuide(false)}
-                  className="p-1 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition"
+                  onClick={() => setShowIOSGuide(false)}
+                  className="p-1.5 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition cursor-pointer"
                 >
-                  <X className="w-4 h-4" />
+                  <X className="w-4.5 h-4.5" />
                 </button>
               </div>
 
-              <div className="space-y-3.5 text-slate-600 text-xs">
-                <div className="flex items-start gap-3 p-2.5 bg-slate-50 border border-slate-100 rounded-lg">
-                  <div className="w-6 h-6 rounded-full bg-[#0F172A] text-white flex items-center justify-center font-bold text-xs shrink-0">
+              <div className="space-y-3 text-slate-600 text-xs font-medium">
+                <div className="flex items-start gap-3 p-3 bg-slate-50 border border-slate-100 rounded-xl">
+                  <div className="w-6 h-6 rounded-full bg-emerald-800 text-white flex items-center justify-center font-black text-xs shrink-0">
                     1
                   </div>
                   <div>
-                    <p className="font-semibold text-slate-900 mb-0.5">Abra no navegador Safari</p>
-                    <p className="text-[10px] text-slate-500">Certifique-se de estar usando o Safari original do iOS.</p>
+                    <p className="font-bold text-slate-900 mb-0.5">Abra no navegador Safari</p>
+                    <p className="text-[10px] text-slate-500 font-medium">Este recurso requer o navegador original do iOS.</p>
                   </div>
                 </div>
 
-                <div className="flex items-start gap-3 p-2.5 bg-slate-50 border border-slate-100 rounded-lg">
-                  <div className="w-6 h-6 rounded-full bg-[#0F172A] text-white flex items-center justify-center font-bold text-xs shrink-0">
+                <div className="flex items-start gap-3 p-3 bg-slate-50 border border-slate-100 rounded-xl">
+                  <div className="w-6 h-6 rounded-full bg-emerald-800 text-white flex items-center justify-center font-black text-xs shrink-0">
                     2
                   </div>
                   <div>
-                    <p className="font-semibold text-slate-900 mb-0.5 flex items-center gap-1">
-                      Toque em Compartilhar <Share2 className="w-3.5 h-3.5 text-blue-600 inline" />
+                    <p className="font-bold text-slate-900 mb-0.5 flex items-center gap-1.5">
+                      Toque em Compartilhar <Share2 className="w-3.5 h-3.5 text-emerald-800 inline" />
                     </p>
-                    <p className="text-[10px] text-slate-500">Toque no ícone de compartilhamento na barra inferior do Safari.</p>
+                    <p className="text-[10px] text-slate-500 font-medium">Toque no ícone de compartilhar na barra inferior do Safari.</p>
                   </div>
                 </div>
 
-                <div className="flex items-start gap-3 p-2.5 bg-slate-50 border border-slate-100 rounded-lg">
-                  <div className="w-6 h-6 rounded-full bg-[#0F172A] text-white flex items-center justify-center font-bold text-xs shrink-0">
+                <div className="flex items-start gap-3 p-3 bg-slate-50 border border-slate-100 rounded-xl">
+                  <div className="w-6 h-6 rounded-full bg-emerald-800 text-white flex items-center justify-center font-black text-xs shrink-0">
                     3
                   </div>
                   <div>
-                    <p className="font-semibold text-slate-900 mb-0.5 flex items-center gap-1">
-                      Adicionar à Tela de Início <PlusSquare className="w-3.5 h-3.5 text-blue-600 inline" />
+                    <p className="font-bold text-slate-900 mb-0.5 flex items-center gap-1.5">
+                      Adicionar à Tela de Início <PlusSquare className="w-3.5 h-3.5 text-emerald-800 inline" />
                     </p>
-                    <p className="text-[10px] text-slate-500">Role a lista de opções para baixo e toque em "Adicionar à Tela de Início".</p>
+                    <p className="text-[10px] text-slate-500 font-medium">Role a lista para baixo e selecione "Adicionar à Tela de Início".</p>
                   </div>
                 </div>
               </div>
 
               <button
-                onClick={() => setShowGuide(false)}
-                className="w-full mt-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg shadow-sm transition-all"
+                onClick={() => {
+                  setShowIOSGuide(false);
+                  sessionStorage.setItem('pwa_prompt_dismissed', 'true');
+                  setShowPrompt(false);
+                }}
+                className="w-full mt-5 py-3 bg-emerald-800 hover:bg-emerald-950 text-white font-extrabold text-xs rounded-xl shadow-md transition-all cursor-pointer text-center"
               >
-                Entendido
+                Pronto, entendi!
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Android/Chrome Fallback Guide Modal */}
+      <AnimatePresence>
+        {showAndroidGuide && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-2xl w-full max-w-sm p-5 shadow-2xl relative overflow-hidden text-left border border-slate-100"
+            >
+              <div className="absolute top-0 right-0 w-36 h-36 bg-emerald-50/40 rounded-full blur-3xl -z-10" />
+
+              <div className="flex justify-between items-center mb-4">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-800">
+                    <Info className="w-4 h-4" />
+                  </div>
+                  <h3 className="text-sm font-black text-slate-900">
+                    Como instalar o App
+                  </h3>
+                </div>
+                <button
+                  onClick={() => setShowAndroidGuide(false)}
+                  className="p-1.5 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition cursor-pointer"
+                >
+                  <X className="w-4.5 h-4.5" />
+                </button>
+              </div>
+
+              <div className="space-y-3 text-slate-600 text-xs font-medium">
+                <div className="flex items-start gap-3 p-3 bg-slate-50 border border-slate-100 rounded-xl">
+                  <div className="w-6 h-6 rounded-full bg-emerald-800 text-white flex items-center justify-center font-black text-xs shrink-0">
+                    1
+                  </div>
+                  <div>
+                    <p className="font-bold text-slate-900 mb-0.5 flex items-center gap-1">
+                      Abra o Menu <MoreVertical className="w-3.5 h-3.5 inline text-slate-500" />
+                    </p>
+                    <p className="text-[10px] text-slate-500 font-medium font-medium">Toque nos três pontinhos no canto superior direito do seu navegador.</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3 p-3 bg-slate-50 border border-slate-100 rounded-xl">
+                  <div className="w-6 h-6 rounded-full bg-emerald-800 text-white flex items-center justify-center font-black text-xs shrink-0">
+                    2
+                  </div>
+                  <div>
+                    <p className="font-bold text-slate-900 mb-0.5 flex items-center gap-1.5">
+                      Clique em "Instalar aplicativo"
+                    </p>
+                    <p className="text-[10px] text-slate-500 font-medium">Ou selecione a opção "Adicionar à tela inicial" no menu do navegador.</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3 p-3 bg-slate-50 border border-slate-100 rounded-xl">
+                  <div className="w-6 h-6 rounded-full bg-emerald-800 text-white flex items-center justify-center font-black text-xs shrink-0">
+                    3
+                  </div>
+                  <div>
+                    <p className="font-bold text-slate-900 mb-0.5">Aproveite no seu celular</p>
+                    <p className="text-[10px] text-slate-500 font-medium">Pronto! O ícone dourado do app Ispirato estará disponível no seu celular.</p>
+                  </div>
+                </div>
+              </div>
+
+              <button
+                onClick={() => {
+                  setShowAndroidGuide(false);
+                  sessionStorage.setItem('pwa_prompt_dismissed', 'true');
+                  setShowPrompt(false);
+                }}
+                className="w-full mt-5 py-3 bg-emerald-800 hover:bg-emerald-950 text-white font-extrabold text-xs rounded-xl shadow-md transition-all cursor-pointer text-center"
+              >
+                Entendi, obrigado!
               </button>
             </motion.div>
           </div>

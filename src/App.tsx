@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { 
   Leaf, Shield, Sparkles, ShoppingBag, Send, CreditCard, ChevronRight, 
   HelpCircle, ExternalLink, RefreshCw, MessageCircle, ArrowRight,
-  Search, LogIn, LogOut, User, ShieldCheck, Tag, Layers, Flame, Settings, Info
+  Search, LogIn, LogOut, User, ShieldCheck, Tag, Layers, Flame, Settings, Info,
+  Download
 } from 'lucide-react';
 import { auth, db, googleProvider, OperationType, handleFirestoreError } from './firebase';
 import { onAuthStateChanged, User as FirebaseUser, signInWithPopup, signInAnonymously, signOut, signInWithEmailAndPassword } from 'firebase/auth';
@@ -483,6 +484,14 @@ export default function App() {
               <MessageCircle className="w-4 h-4 text-emerald-400" />
               Suporte WhatsApp
             </a>
+
+            <button
+              onClick={() => window.dispatchEvent(new CustomEvent('open-pwa-prompt'))}
+              className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-bold text-slate-400 hover:bg-slate-800/50 hover:text-white transition-all cursor-pointer text-left"
+            >
+              <Download className="w-4 h-4 text-emerald-400 animate-pulse" />
+              Instalar Aplicativo
+            </button>
           </nav>
 
           {/* Meta de Pedido Status Block */}
@@ -558,6 +567,16 @@ export default function App() {
           {/* Right Header Controls */}
           <div className="flex items-center gap-1 sm:gap-4">
             
+            {/* Elegant PWA Install Badge for both mobile and desktop */}
+            <button
+              onClick={() => window.dispatchEvent(new CustomEvent('open-pwa-prompt'))}
+              className="flex items-center gap-1 bg-emerald-50 border border-emerald-200/60 hover:bg-emerald-100 text-emerald-800 py-1.5 px-2.5 rounded-full text-[10px] font-black cursor-pointer shadow-3xs transition-all active:scale-95 shrink-0"
+              title="Instalar Aplicativo (PWA)"
+            >
+              <Download className="w-3.5 h-3.5 text-emerald-700 animate-bounce" />
+              <span className="hidden min-[385px]:inline">Baixar App</span>
+            </button>
+
             {/* Config button: Visible ONLY to real admin on desktop */}
             {isAdmin && (
               <button
