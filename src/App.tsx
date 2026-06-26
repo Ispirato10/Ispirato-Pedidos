@@ -128,7 +128,8 @@ export default function App() {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setCurrentUser(user);
       if (user) {
-        const isUserAdmin = user.email === 'contaparaplugns@gmail.com';
+        const adminEmailsList = settings?.adminEmails || SEED_SETTINGS.adminEmails;
+        const isUserAdmin = !!(user.email && adminEmailsList.some(email => email.toLowerCase() === user.email!.toLowerCase()));
         setIsAdmin(isUserAdmin);
         if (isUserAdmin) {
           sessionStorage.setItem('isAppAdmin', 'true');
@@ -147,7 +148,7 @@ export default function App() {
       }
     });
     return () => unsubscribe();
-  }, []);
+  }, [settings]);
 
   // Load App Settings and Products
   useEffect(() => {
@@ -193,6 +194,7 @@ export default function App() {
         console.warn('Erro ao carregar configurações do Firestore (usando padrão local):', err);
         if (err.message && err.message.includes('permission')) {
           setFirestoreError('permission-error');
+          handleFirestoreError(err, OperationType.GET, 'settings/global');
         } else {
           setFirestoreError(err.message || String(err));
         }
@@ -200,13 +202,15 @@ export default function App() {
 
       // If settings not loaded from Firestore, use fallback and try to seed if admin
       if (!settingsLoaded) {
-        const isRealAdmin = auth.currentUser?.email === 'sac@lojaispirato.com.br' || 
-                            auth.currentUser?.email === 'contaparaplugns@gmail.com';
+        const isRealAdmin = !!(auth.currentUser?.email && SEED_SETTINGS.adminEmails.some(email => email.toLowerCase() === auth.currentUser!.email!.toLowerCase()));
         if (isRealAdmin) {
           try {
             await setDoc(settingsDocRef, SEED_SETTINGS);
           } catch (err: any) {
             console.warn('Unable to seed global settings client-side:', err);
+            if (err.message && (err.message.includes('permission') || err.message.includes('insufficient'))) {
+              handleFirestoreError(err, OperationType.WRITE, 'settings/global');
+            }
           }
         }
         setSettings(SEED_SETTINGS);
@@ -232,19 +236,23 @@ export default function App() {
         console.warn('Erro ao carregar produtos do Firestore (usando padrão local):', err);
         if (err.message && err.message.includes('permission')) {
           setFirestoreError('permission-error');
+          handleFirestoreError(err, OperationType.LIST, 'products');
         }
       }
 
       // If products not loaded from Firestore, use fallback and try to seed if admin
       if (!productsLoaded) {
-        const isRealAdmin = auth.currentUser?.email === 'sac@lojaispirato.com.br' || 
-                            auth.currentUser?.email === 'contaparaplugns@gmail.com';
+        const currentAdminEmails = settings?.adminEmails || SEED_SETTINGS.adminEmails;
+        const isRealAdmin = !!(auth.currentUser?.email && currentAdminEmails.some(email => email.toLowerCase() === auth.currentUser!.email!.toLowerCase()));
         if (isRealAdmin) {
           for (const prod of SEED_PRODUCTS) {
             try {
               await setDoc(doc(db, 'products', prod.id), prod);
             } catch (err: any) {
               console.warn(`Unable to seed product ${prod.id} client-side:`, err);
+              if (err.message && (err.message.includes('permission') || err.message.includes('insufficient'))) {
+                handleFirestoreError(err, OperationType.WRITE, `products/${prod.id}`);
+              }
             }
           }
         }
@@ -345,7 +353,8 @@ export default function App() {
       const result = await signInWithPopup(auth, googleProvider);
       const user = result.user;
       
-      if (user.email === 'contaparaplugns@gmail.com') {
+      const adminEmailsList = settings?.adminEmails || SEED_SETTINGS.adminEmails;
+      if (user.email && adminEmailsList.some(email => email.toLowerCase() === user.email!.toLowerCase())) {
         setIsAdmin(true);
         sessionStorage.setItem('isAppAdmin', 'true');
         setShowAdminLoginModal(false);
@@ -469,6 +478,9 @@ export default function App() {
       });
     } catch (err: any) {
       console.warn('Erro ao salvar pedido no Firestore (prosseguindo para o WhatsApp):', err);
+      if (err.message && (err.message.includes('permission') || err.message.includes('insufficient'))) {
+        handleFirestoreError(err, OperationType.CREATE, 'orders');
+      }
     }
 
     const cleanNumber = settings.whatsappNumber.replace(/\D/g, '');
@@ -672,7 +684,7 @@ export default function App() {
                       {isAdmin ? 'Administrador' : (currentUser?.isAnonymous ? 'Revendedor Anônimo' : currentUser?.displayName || 'Usuário')}
                     </p>
                     <p className="text-[10px] text-slate-400 font-medium">
-                      {isAdmin ? 'contaparaplugns@gmail.com' : (currentUser?.email || (currentUser?.isAnonymous ? 'Dados Locais' : 'Sem e-mail'))}
+                      {currentUser?.email || (isAdmin ? 'Administrador Local' : (currentUser?.isAnonymous ? 'Dados Locais' : 'Sem e-mail'))}
                     </p>
                   </div>
                   {currentUser?.photoURL ? (
@@ -1100,7 +1112,7 @@ export default function App() {
                 </button>
 
                 <p className="text-[10px] text-slate-400 text-center font-semibold leading-relaxed">
-                  Identifique-se com a conta <strong>contaparaplugns@gmail.com</strong>
+                  Identifique-se com uma conta Google de administrador cadastrada (ex: <strong>contaparaplugns@gmail.com</strong>)
                 </p>
 
                 {/* Divider */}

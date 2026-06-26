@@ -36,7 +36,8 @@ export default function AdminPanel({
     const isLocalAdmin = sessionStorage.getItem('isAppAdmin') === 'true';
     const checkAuth = (user: any) => {
       if (user) {
-        const isUserAdmin = user.email === 'sac@lojaispirato.com.br' || user.email === 'contaparaplugns@gmail.com';
+        const adminEmailsList = settings?.adminEmails || ['contaparaplugns@gmail.com', 'sac@lojaispirato.com.br'];
+        const isUserAdmin = user.email && adminEmailsList.includes(user.email);
         if (!isUserAdmin && !isLocalAdmin) {
           onClose();
         }
@@ -51,12 +52,17 @@ export default function AdminPanel({
     });
     
     return () => unsubscribe();
-  }, [onClose]);
+  }, [onClose, settings]);
 
-  const isAdminAuthed = firebaseUser && firebaseUser.email === 'contaparaplugns@gmail.com';
+  const adminEmailsList = settings?.adminEmails || ['contaparaplugns@gmail.com', 'sac@lojaispirato.com.br'];
+  const isAdminAuthed = !!(
+    firebaseUser && 
+    firebaseUser.email && 
+    adminEmailsList.some(email => email.toLowerCase() === firebaseUser.email!.toLowerCase())
+  );
 
   const currentAuthEmail = firebaseUser?.email || 'Nenhum (Modo Local)';
-  const isCorrectAdminEmail = firebaseUser?.email === 'contaparaplugns@gmail.com';
+  const isCorrectAdminEmail = isAdminAuthed;
 
   // App Settings edit state
   const [editSettings, setEditSettings] = useState<AppSettings>({ ...settings });
@@ -174,6 +180,7 @@ export default function AdminPanel({
       console.warn('Erro ao carregar pedidos do Firestore:', err);
       setOrdersError(err.message || String(err));
       setOrders([]);
+      handleFirestoreError(err, OperationType.LIST, 'orders');
     } finally {
       setOrdersLoading(false);
     }
@@ -191,6 +198,7 @@ export default function AdminPanel({
     } catch (err: any) {
       console.error('Error saving settings:', err);
       setSettingsError(err.message || 'Falha ao salvar. Verifique se você está autenticado como administrador.');
+      handleFirestoreError(err, OperationType.WRITE, 'settings/global');
     } finally {
       setSavingSettings(false);
     }
@@ -241,8 +249,15 @@ export default function AdminPanel({
       setIsEditingProduct(null);
       alert('Produto salvo com sucesso!');
     } catch (err: any) {
+      console.error('Error saving product:', err);
+      let errorMsg = 'Falha ao salvar produto. Verifique suas permissões.';
+      if (err.message && (err.message.includes('permission') || err.message.includes('insufficient'))) {
+        errorMsg = 'Erro de permissão no Firebase. Certifique-se de estar logado com sua conta Google de administrador oficial no topo.';
+      } else {
+        errorMsg = err.message || String(err);
+      }
+      setProductError(errorMsg);
       handleFirestoreError(err, OperationType.WRITE, `products/${pid}`);
-      setProductError('Ocorreu um erro ao salvar o produto.');
     } finally {
       setSavingProduct(false);
     }
@@ -260,6 +275,12 @@ export default function AdminPanel({
         onProductsUpdate();
         alert('Produto excluído com sucesso!');
       } catch (err: any) {
+        console.error('Error deleting product:', err);
+        if (err.message && (err.message.includes('permission') || err.message.includes('insufficient'))) {
+          alert('Erro de permissão no Firebase. Você precisa estar autenticado como administrador oficial para excluir.');
+        } else {
+          alert('Erro ao excluir produto: ' + (err.message || String(err)));
+        }
         handleFirestoreError(err, OperationType.DELETE, `products/${id}`);
       }
     }
@@ -270,6 +291,12 @@ export default function AdminPanel({
       await updateDoc(doc(db, 'orders', orderId), { status: newStatus });
       setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
     } catch (err: any) {
+      console.error('Error updating order:', err);
+      if (err.message && (err.message.includes('permission') || err.message.includes('insufficient'))) {
+        alert('Erro de permissão no Firebase. Você precisa estar autenticado como administrador oficial para alterar o status.');
+      } else {
+        alert('Erro ao atualizar pedido: ' + (err.message || String(err)));
+      }
       handleFirestoreError(err, OperationType.UPDATE, `orders/${orderId}`);
     }
   };
@@ -315,7 +342,7 @@ export default function AdminPanel({
               <p className="font-bold text-amber-900">Acesso Restrito: Gravação Bloqueada</p>
               <p className="text-xs text-amber-700 mt-0.5">
                 Você entrou como administrador local, mas o Firebase não reconhece sua sessão. 
-                Para salvar as alterações no banco de dados, você <strong>precisa</strong> estar logado com sua conta Google <strong>contaparaplugns@gmail.com</strong>.
+                Para salvar as alterações no banco de dados, você <strong>precisa</strong> estar logado com uma conta Google de administrador cadastrada ({adminEmailsList.join(', ')}).
               </p>
             </div>
           </div>
@@ -486,11 +513,30 @@ export default function AdminPanel({
             </div>
 
             {settingsError && (
-              <div className="p-4 bg-rose-50 border border-rose-100 text-rose-700 text-sm rounded-xl flex items-start gap-3">
-                <Info className="w-5 h-5 shrink-0" />
-                <div>
+              <div className="p-4 bg-rose-50 border border-rose-100 text-rose-700 text-sm rounded-xl flex items-start gap-3 col-span-2">
+                <Info className="w-5 h-5 shrink-0 mt-0.5 text-rose-600" />
+                <div className="w-full">
                   <p className="font-bold">Erro ao salvar as configurações</p>
-                  <p className="text-xs mt-1">{settingsError}</p>
+                  <p className="text-xs mt-1 text-rose-600/90 leading-relaxed">{settingsError}</p>
+                  
+                  {(settingsError.includes('permission') || settingsError.includes('permissão') || !isAdminAuthed) && (
+                    <div className="mt-3 p-3 bg-white rounded-xl border border-rose-200 text-slate-700 text-xs leading-relaxed space-y-2">
+                      <p className="font-extrabold text-slate-800 flex items-center gap-1">
+                        <span>💡</span> Como solucionar este erro de permissão no Firebase:
+                      </p>
+                      <ul className="list-disc list-inside space-y-1.5 text-slate-600 pl-1 font-medium">
+                        <li>
+                          <strong>Entre com uma Conta Google Admin:</strong> Verifique se a barra de status de autenticação (verde) está sendo exibida no topo desta página indicando seu e-mail de administrador oficial. Se a barra estiver amarela ("Acesso Restrito: Gravação Bloqueada"), você está apenas como gestor local/senha e o Firebase rejeitará a gravação.
+                        </li>
+                        <li>
+                          <strong>Evite Bloqueio de Pop-ups (Modo Iframe):</strong> Se você estiver testando o app dentro do editor/iframe do AI Studio, o navegador bloqueará o pop-up do login do Google. Clique no botão <strong className="text-emerald-700 font-extrabold">"Abrir em nova aba"</strong> no canto superior direito para abrir o aplicativo em tela cheia e tente fazer o login de admin por lá!
+                        </li>
+                        <li>
+                          <strong>Ative o Google Sign-In no Console:</strong> Como o banco é seu projeto pessoal (<code className="bg-slate-100 px-1 rounded text-rose-600 text-[10px]">ispirato-pedidos-pwa</code>), verifique se ativou o método de login "Google" em <code className="bg-slate-100 px-1 rounded text-rose-600 text-[10px]">Authentication &gt; Sign-in method</code> no Console do Firebase.
+                        </li>
+                      </ul>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

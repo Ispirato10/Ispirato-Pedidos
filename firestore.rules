@@ -3,35 +3,54 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Helper to check if user is an admin
-    function isAdmin() {
+    // Helper to check if user is a hardcoded admin
+    function isHardcodedAdmin() {
       return request.auth != null && 
+        request.auth.token.email != null &&
         (
-          request.auth.token.email == "contaparaplugns@gmail.com" ||
-          request.auth.token.email == "sac@lojaispirato.com.br"
+          request.auth.token.email.lowerCase() == "contaparaplugns@gmail.com" ||
+          request.auth.token.email.lowerCase() == "sac@lojaispirato.com.br"
         );
+    }
+
+    // Helper to check if user is a dynamic admin (from settings/global doc)
+    function isDynamicAdmin() {
+      return request.auth != null && 
+        request.auth.token.email != null &&
+        exists(/databases/$(database)/documents/settings/global) &&
+        request.auth.token.email in get(/databases/$(database)/documents/settings/global).data.adminEmails;
     }
 
     // Settings Collection rules
     match /settings/{settingId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow create: if isHardcodedAdmin();
+      allow update: if isHardcodedAdmin() || (
+        request.auth != null && 
+        request.auth.token.email != null &&
+        resource != null &&
+        resource.data != null &&
+        'adminEmails' in resource.data &&
+        request.auth.token.email in resource.data.adminEmails
+      );
+      allow delete: if isHardcodedAdmin();
     }
 
     // Products Collection rules
     match /products/{productId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if isHardcodedAdmin() || isDynamicAdmin();
     }
 
     // Orders Collection rules
     match /orders/{orderId} {
       allow read: if request.auth != null && (
         request.auth.uid == resource.data.userId || 
-        isAdmin()
+        isHardcodedAdmin() || 
+        isDynamicAdmin()
       );
       allow create: if true; // Allow anonymous or logged in users to submit orders
-      allow update, delete: if isAdmin();
+      allow update, delete: if isHardcodedAdmin() || isDynamicAdmin();
     }
   }
 }
