@@ -8,8 +8,8 @@ service cloud.firestore {
       return request.auth != null && 
         request.auth.token.email != null &&
         (
-          request.auth.token.email.lowerCase() == "contaparaplugns@gmail.com" ||
-          request.auth.token.email.lowerCase() == "sac@lojaispirato.com.br"
+          request.auth.token.email.lower() == "contaparaplugns@gmail.com" ||
+          request.auth.token.email.lower() == "sac@lojaispirato.com.br"
         );
     }
 

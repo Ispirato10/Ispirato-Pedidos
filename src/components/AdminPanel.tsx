@@ -859,6 +859,27 @@ export default function AdminPanel({
               </div>
 
               <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-600">Categoria (ou adicione uma nova)</label>
+                <div className="flex gap-2">
+                  <select
+                    className="flex-grow border border-slate-200 rounded-lg p-2.5 text-xs focus:outline-none focus:border-emerald-600"
+                    value={productForm.category || 'Cosméticos'}
+                    onChange={(e) => setProductForm({ ...productForm, category: e.target.value })}
+                  >
+                    <option value="Cosméticos">Cosméticos</option>
+                    <option value="Suplementos">Suplementos</option>
+                    <option value="Outros">Outros</option>
+                  </select>
+                  <input
+                    type="text"
+                    placeholder="Nova..."
+                    className="w-1/3 border border-slate-200 rounded-lg p-2.5 text-xs focus:outline-none focus:border-emerald-600"
+                    onChange={(e) => e.target.value && setProductForm({ ...productForm, category: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
                 <label className="text-xs font-bold text-slate-600">URL da Imagem do Produto</label>
                 <input
                   type="text"

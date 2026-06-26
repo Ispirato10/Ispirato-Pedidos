@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Leaf, Shield, Sparkles, ShoppingBag, Send, CreditCard, ChevronRight, 
   HelpCircle, ExternalLink, RefreshCw, MessageCircle, ArrowRight,
@@ -150,11 +150,13 @@ export default function App() {
     return () => unsubscribe();
   }, [settings]);
 
-  // Load App Settings and Products
+  // Load App Settings and Products when auth state changes
   useEffect(() => {
     loadDatabase();
+  }, [currentUser]);
 
-    // Proactive PWA updates check on app load and focus
+  // Proactive PWA updates check on app load and focus
+  useEffect(() => {
     if ('serviceWorker' in navigator) {
       // Check on startup
       navigator.serviceWorker.ready.then((registration) => {
@@ -179,8 +181,8 @@ export default function App() {
     let settingsLoaded = false;
     let productsLoaded = false;
 
+    // 1. Carregar configurações
     try {
-      // 1. Fetch settings
       const settingsDocRef = doc(db, 'settings', 'global');
       let settingsDocSnap;
       try {
@@ -194,29 +196,41 @@ export default function App() {
         console.warn('Erro ao carregar configurações do Firestore (usando padrão local):', err);
         if (err.message && err.message.includes('permission')) {
           setFirestoreError('permission-error');
-          handleFirestoreError(err, OperationType.GET, 'settings/global');
+          try {
+            handleFirestoreError(err, OperationType.GET, 'settings/global');
+          } catch (e) {
+            console.warn('Log de erro de permissão registrado.');
+          }
         } else {
           setFirestoreError(err.message || String(err));
         }
       }
 
-      // If settings not loaded from Firestore, use fallback and try to seed if admin
+      // Se não carregou do Firestore, tenta fazer seed se for admin ou usa fallback local
       if (!settingsLoaded) {
         const isRealAdmin = !!(auth.currentUser?.email && SEED_SETTINGS.adminEmails.some(email => email.toLowerCase() === auth.currentUser!.email!.toLowerCase()));
         if (isRealAdmin) {
           try {
             await setDoc(settingsDocRef, SEED_SETTINGS);
+            settingsLoaded = true;
           } catch (err: any) {
             console.warn('Unable to seed global settings client-side:', err);
             if (err.message && (err.message.includes('permission') || err.message.includes('insufficient'))) {
-              handleFirestoreError(err, OperationType.WRITE, 'settings/global');
+              try {
+                handleFirestoreError(err, OperationType.WRITE, 'settings/global');
+              } catch (e) {}
             }
           }
         }
         setSettings(SEED_SETTINGS);
       }
+    } catch (err) {
+      console.error('Erro na fase de carregamento de configurações:', err);
+      setSettings(SEED_SETTINGS);
+    }
 
-      // 2. Fetch products
+    // 2. Carregar produtos
+    try {
       const productsColRef = collection(db, 'products');
       let productsSnapshot;
       try {
@@ -224,7 +238,26 @@ export default function App() {
         const loadedProducts: Product[] = [];
         if (productsSnapshot) {
           productsSnapshot.forEach((docSnap) => {
-            loadedProducts.push({ id: docSnap.id, ...docSnap.data() } as Product);
+            const data = docSnap.data();
+            // Desconsidera documentos corrompidos ou vazios (sem nome definido)
+            if (!data || !data.name) {
+              return;
+            }
+            const prod: Product = {
+              id: docSnap.id,
+              name: data.name,
+              description: data.description || '',
+              image: data.image || '',
+              prices: {
+                base: Number(data.prices?.base ?? data.price ?? 0),
+                bulk12: Number(data.prices?.bulk12 ?? data.priceBulk ?? 0),
+                bulk500: Number(data.prices?.bulk500 ?? data.priceBulk500 ?? 0)
+              },
+              active: data.active ?? true,
+              category: data.category || 'Outros',
+              icon: data.icon || 'fa-leaf'
+            };
+            loadedProducts.push(prod);
           });
         }
 
@@ -236,11 +269,13 @@ export default function App() {
         console.warn('Erro ao carregar produtos do Firestore (usando padrão local):', err);
         if (err.message && err.message.includes('permission')) {
           setFirestoreError('permission-error');
-          handleFirestoreError(err, OperationType.LIST, 'products');
+          try {
+            handleFirestoreError(err, OperationType.LIST, 'products');
+          } catch (e) {}
         }
       }
 
-      // If products not loaded from Firestore, use fallback and try to seed if admin
+      // Se os produtos não foram carregados do Firestore, usa o fallback local e faz seed se admin
       if (!productsLoaded) {
         const currentAdminEmails = settings?.adminEmails || SEED_SETTINGS.adminEmails;
         const isRealAdmin = !!(auth.currentUser?.email && currentAdminEmails.some(email => email.toLowerCase() === auth.currentUser!.email!.toLowerCase()));
@@ -251,16 +286,18 @@ export default function App() {
             } catch (err: any) {
               console.warn(`Unable to seed product ${prod.id} client-side:`, err);
               if (err.message && (err.message.includes('permission') || err.message.includes('insufficient'))) {
-                handleFirestoreError(err, OperationType.WRITE, `products/${prod.id}`);
+                try {
+                  handleFirestoreError(err, OperationType.WRITE, `products/${prod.id}`);
+                } catch (e) {}
               }
             }
           }
         }
         setProducts(SEED_PRODUCTS);
       }
-
     } catch (err) {
-      console.error('Error in loadDatabase wrapper:', err);
+      console.error('Erro na fase de carregamento de produtos:', err);
+      setProducts(SEED_PRODUCTS);
     } finally {
       setDataLoading(false);
     }
