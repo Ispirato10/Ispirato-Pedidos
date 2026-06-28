@@ -125,13 +125,13 @@ export default function UserOrdersDashboard({
 
   const handleResendToWhatsapp = (order: Order) => {
     let msg = `*REENVIO DE PEDIDO DE ATACADO - ISPIRATO*\n`;
-    msg += `🆔 *ID do Pedido:* ${order.id.slice(0, 8)}...\n\n`;
-    msg += `👤 *Revendedor:* ${order.userName}\n`;
-    msg += `📧 *E-mail:* ${order.userEmail}\n`;
-    msg += `💳 *Faturamento:* ${getPaymentMethodLabel(order.paymentMethod)}\n`;
-    msg += `📄 *Nota Fiscal:* ${order.needsInvoice ? 'Sim, emitir NF-e' : 'Não necessita'}\n`;
+    msg += `\uD83C\uDD94 *ID do Pedido:* ${order.id.slice(0, 8)}...\n\n`;
+    msg += `\uD83D\uDC64 *Revendedor:* ${order.userName}\n`;
+    msg += `\uD83D\uDCE7 *E-mail:* ${order.userEmail}\n`;
+    msg += `\uD83D\uDCB3 *Faturamento:* ${getPaymentMethodLabel(order.paymentMethod)}\n`;
+    msg += `\uD83D\uDCC4 *Nota Fiscal:* ${order.needsInvoice ? 'Sim, emitir NF-e' : 'Não necessita'}\n`;
     msg += `━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
-    msg += `📦 *ITENS DO PEDIDO:*\n`;
+    msg += `\uD83D\uDCE6 *ITENS DO PEDIDO:*\n`;
 
     order.items.forEach(item => {
       msg += `\n• *${item.name}*\n`;
@@ -140,8 +140,8 @@ export default function UserOrdersDashboard({
     });
 
     msg += `\n━━━━━━━━━━━━━━━━━━━━━━━\n`;
-    msg += `💰 *TOTAL GERAL: R$ ${order.total.toFixed(2)}*\n`;
-    msg += `📦 *Total Itens:* ${order.totalQuantity} unidades\n\n`;
+    msg += `\uD83D\uDCB0 *TOTAL GERAL: R$ ${order.total.toFixed(2)}*\n`;
+    msg += `\uD83D\uDCE6 *Total Itens:* ${order.totalQuantity} unidades\n\n`;
     msg += `_Este é um reenvio de histórico de pedido salvo._`;
 
     const cleanNumber = settings.whatsappNumber.replace(/\D/g, '');

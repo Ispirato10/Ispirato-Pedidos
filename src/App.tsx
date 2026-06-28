@@ -458,18 +458,18 @@ export default function App() {
     }
 
     let msg = `*NOVO PEDIDO DE ATACADO - ISPIRATO*\n\n`;
-    msg += `👤 *Revendedor:* ${formData.name}\n`;
-    msg += `📧 *E-mail:* ${formData.email}\n`;
-    msg += `💳 *Faturamento:* ${
+    msg += `\uD83D\uDC64 *Revendedor:* ${formData.name}\n`;
+    msg += `\uD83D\uDCE7 *E-mail:* ${formData.email}\n`;
+    msg += `\uD83D\uDCB3 *Faturamento:* ${
       formData.paymentMethod === 'pix' ? 'PIX à Vista (Chave CNPJ: 40.587.128/0001-18)' :
       formData.paymentMethod === 'dinheiro' ? 'Espécie na entrega' :
       formData.paymentMethod === 'boleto-30' ? 'Boleto Bancário (30 dias)' :
       formData.paymentMethod === 'boleto-30-60' ? 'Boleto Duplo (30/60 dias)' :
       formData.paymentMethod
     }\n`;
-    msg += `📄 *Nota Fiscal:* ${formData.needsInvoice ? 'Sim, emitir NF-e' : 'Não necessita'}\n`;
+    msg += `\uD83D\uDCC4 *Nota Fiscal:* ${formData.needsInvoice ? 'Sim, emitir NF-e' : 'Não necessita'}\n`;
     msg += `━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
-    msg += `📦 *ITENS DO PEDIDO:*\n`;
+    msg += `\uD83D\uDCE6 *ITENS DO PEDIDO:*\n`;
 
     const itemsForFirestore: any[] = [];
 
