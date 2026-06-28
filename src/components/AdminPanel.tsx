@@ -69,6 +69,7 @@ export default function AdminPanel({
   const [savingSettings, setSavingSettings] = useState(false);
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
   const [settingsError, setSettingsError] = useState<string | null>(null);
+  const [deletingOrder, setDeletingOrder] = useState<string | null>(null);
 
   // Product edit/create states
   const [isEditingProduct, setIsEditingProduct] = useState<string | null>(null); // null if creating or inactive
@@ -301,9 +302,55 @@ export default function AdminPanel({
     }
   };
 
+  const handleDeleteOrder = (e: React.MouseEvent, orderId: string) => {
+    e.stopPropagation();
+    setDeletingOrder(orderId);
+  };
+
+  const confirmDelete = async () => {
+    if (!deletingOrder) return;
+    try {
+      await deleteDoc(doc(db, 'orders', deletingOrder));
+      setOrders(prev => prev.filter(o => o.id !== deletingOrder));
+      alert('Pedido excluído com sucesso!');
+    } catch (err: any) {
+      console.error('Error detalhado ao excluir pedido:', err);
+      if (err.message && (err.message.includes('permission') || err.message.includes('insufficient'))) {
+        alert('Erro de permissão no Firebase. Você precisa estar autenticado como administrador oficial para excluir.');
+      } else {
+        alert('Erro ao excluir pedido: ' + (err.message || String(err)));
+      }
+      handleFirestoreError(err, OperationType.DELETE, `orders/${deletingOrder}`);
+    } finally {
+      setDeletingOrder(null);
+    }
+  };
+
   return (
     <div className="bg-slate-50 min-h-screen pb-16">
       {/* Admin Header */}
+      {deletingOrder && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 max-w-sm w-full shadow-xl">
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Excluir Pedido?</h3>
+            <p className="text-gray-600 mb-6">Tem certeza de que deseja excluir este pedido permanentemente? Esta ação não pode ser desfeita.</p>
+            <div className="flex justify-end gap-3">
+              <button 
+                onClick={() => setDeletingOrder(null)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={confirmDelete}
+                className="px-4 py-2 text-sm font-medium text-white bg-rose-600 hover:bg-rose-700 rounded-md transition-colors"
+              >
+                Excluir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="bg-gradient-to-r from-emerald-800 to-emerald-950 text-white px-4 py-4 sm:px-6 sm:py-6 shadow-md flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
         <div>
           <h1 className="text-xl sm:text-2xl font-extrabold flex items-center gap-2">
@@ -1123,6 +1170,15 @@ export default function AdminPanel({
                           <option value="completed">Concluído</option>
                           <option value="cancelled">Cancelado</option>
                         </select>
+                        
+                        <button
+                          type="button"
+                          onClick={(e) => handleDeleteOrder(e, order.id)}
+                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-full transition-all relative z-10"
+                          title="Excluir pedido"
+                        >
+                          <Trash2 className="w-4 h-4 pointer-events-none" />
+                        </button>
                       </div>
                     </div>
 
