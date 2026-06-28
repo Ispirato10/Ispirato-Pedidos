@@ -442,7 +442,7 @@ export default function App() {
     name: string;
     email: string;
     paymentMethod: string;
-    needsInvoice: boolean;
+    needsInvoice: boolean | null;
   }) => {
     const activeProducts = products.filter(p => p.active);
     const selectedItems = activeProducts.filter(p => (quantities[p.id] || 0) > 0);

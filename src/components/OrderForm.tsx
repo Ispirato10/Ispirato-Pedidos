@@ -11,7 +11,7 @@ interface OrderFormProps {
     name: string;
     email: string;
     paymentMethod: string;
-    needsInvoice: boolean;
+    needsInvoice: boolean | null;
   }) => void;
 }
 
@@ -26,7 +26,7 @@ export default function OrderForm({ settings, totalQuantity, totalValue, current
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('');
-  const [needsInvoice, setNeedsInvoice] = useState(false);
+  const [needsInvoice, setNeedsInvoice] = useState<boolean | null>(null);
 
   React.useEffect(() => {
     if (currentUser) {
@@ -140,10 +140,17 @@ export default function OrderForm({ settings, totalQuantity, totalValue, current
           </label>
           <select
             className="w-full border border-slate-200 focus:border-emerald-600 rounded-lg p-2.5 text-xs focus:outline-none transition-all focus:ring-2 focus:ring-emerald-500/10 font-bold text-slate-800 bg-white"
-            value={needsInvoice ? 'sim' : 'nao'}
-            onChange={(e) => setNeedsInvoice(e.target.value === 'sim')}
+            value={needsInvoice === null ? '' : (needsInvoice ? 'sim' : 'nao')}
+            onChange={(e) => {
+              if (e.target.value === '') {
+                setNeedsInvoice(null);
+              } else {
+                setNeedsInvoice(e.target.value === 'sim');
+              }
+            }}
             required
           >
+            <option value="" className="font-semibold text-slate-400">Escolha uma opção...</option>
             <option value="nao" className="font-semibold text-slate-800">
               {settings.formInvoiceNoLabel || 'Não (Gerar somente Recibo / Sem NF-e)'}
             </option>
