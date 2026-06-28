@@ -145,7 +145,7 @@ export default function UserOrdersDashboard({
     msg += `_Este é um reenvio de histórico de pedido salvo._`;
 
     const cleanNumber = settings.whatsappNumber.replace(/\D/g, '');
-    const whatsappUrl = `https://wa.me/${cleanNumber}?text=${encodeURIComponent(msg)}`;
+    const whatsappUrl = `whatsapp://send?phone=${cleanNumber}&text=${encodeURIComponent(msg)}`;
     window.open(whatsappUrl, '_blank');
   };
 

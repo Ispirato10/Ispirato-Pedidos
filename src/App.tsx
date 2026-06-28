@@ -521,7 +521,7 @@ export default function App() {
     }
 
     const cleanNumber = settings.whatsappNumber.replace(/\D/g, '');
-    const whatsappUrl = `https://wa.me/${cleanNumber}?text=${encodeURIComponent(msg)}`;
+    const whatsappUrl = `whatsapp://send?phone=${cleanNumber}&text=${encodeURIComponent(msg)}`;
     window.open(whatsappUrl, '_blank');
   };
 
@@ -600,7 +600,7 @@ export default function App() {
             )}
 
             <a
-              href={`https://wa.me/${settings.whatsappNumber.replace(/\D/g, '')}`}
+              href={`whatsapp://send?phone=${settings.whatsappNumber.replace(/\D/g, '')}`}
               target="_blank"
               rel="noreferrer"
               className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-bold text-slate-400 hover:bg-slate-800/50 hover:text-white transition-all"
@@ -1074,7 +1074,7 @@ export default function App() {
 
         {/* WhatsApp Support Tab */}
         <a
-          href={`https://wa.me/${settings.whatsappNumber.replace(/\D/g, '')}`}
+          href={`whatsapp://send?phone=${settings.whatsappNumber.replace(/\D/g, '')}`}
           target="_blank"
           rel="noreferrer"
           className="flex flex-col items-center justify-center flex-1 h-full py-1 text-center text-slate-400 hover:text-slate-600 font-semibold cursor-pointer"
