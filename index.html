@@ -34,43 +34,12 @@
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          // register with updateViaCache: 'none' to bypass browser HTTP caching of sw.js entirely
-          navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' })
+          navigator.serviceWorker.register('/sw.js')
             .then(reg => {
               console.log('Service Worker registrado com sucesso:', reg.scope);
               
-              // Immediate check for updates on startup
-              reg.update().catch(err => console.log('Erro na checagem inicial do SW:', err));
-
-              // Active check when user returns or brings page to the foreground
-              document.addEventListener('visibilitychange', () => {
-                if (document.visibilityState === 'visible') {
-                  reg.update().catch(err => console.log('Erro ao atualizar SW em visibilidade:', err));
-                }
-              });
-
-              // Periodic background update check every 5 minutes
-              setInterval(() => {
-                reg.update().catch(err => console.log('Erro ao atualizar SW periodicamente:', err));
-              }, 5 * 60 * 1000);
-              
-              // Se houver uma atualização pendente (no estado waiting)
-              if (reg.waiting) {
-                reg.waiting.postMessage({ type: 'SKIP_WAITING' });
-              }
-
-              // Monitora novos service workers que chegam
-              reg.addEventListener('updatefound', () => {
-                const newWorker = reg.installing;
-                if (newWorker) {
-                  newWorker.addEventListener('statechange', () => {
-                    if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                      // Novo service worker instalado com sucesso. Avisa para pular o waiting e recarregar
-                      newWorker.postMessage({ type: 'SKIP_WAITING' });
-                    }
-                  });
-                }
-              });
+              // O próprio navegador gerencia as atualizações de forma eficiente.
+              // Não há necessidade de chamadas manuais repetitivas como setInterval ou visibilidade.
             })
             .catch(err => console.error('Falha ao registrar o Service Worker:', err));
 
