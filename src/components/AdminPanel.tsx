@@ -96,8 +96,8 @@ export default function AdminPanel({
           if (Date.now() - createdAt < 60000) {
             console.log('Novo pedido detectado:', newOrder.id);
             if (Notification.permission === 'granted') {
-              new Notification('Novo Pedido!', {
-                body: `Pedido #${newOrder.id.slice(0, 8)} de ${newOrder.userName || 'Cliente'}`
+              new Notification(`Novo Pedido de ${newOrder.userName || 'Cliente'}!`, {
+                body: `Pedido #${newOrder.id.slice(0, 8)}`
               });
             }
           }
