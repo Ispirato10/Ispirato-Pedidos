@@ -95,8 +95,11 @@ export default function AdminPanel({
           // Notify only if created in the last minute (to avoid old orders)
           if (Date.now() - createdAt < 60000) {
             console.log('Novo pedido detectado:', newOrder.id);
-            // Notification is now expected via FCM server-side, 
-            // but for PWA, we can still show a local one if needed or rely on FCM
+            if (Notification.permission === 'granted') {
+              new Notification('Novo Pedido!', {
+                body: `Pedido #${newOrder.id.slice(0, 8)} de ${newOrder.userName || 'Cliente'}`
+              });
+            }
           }
         }
       });
