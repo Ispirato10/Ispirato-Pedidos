@@ -3,8 +3,11 @@ import {
   Settings, Database, ClipboardList, Plus, Trash2, Edit2, Check, X, 
   Save, Phone, Info, ShoppingBag, FileText, CheckCircle, RefreshCw, Layers, LogOut, CreditCard
 } from 'lucide-react';
-import { db, auth, googleProvider, OperationType, handleFirestoreError } from '../firebase';
-import { collection, doc, setDoc, getDocs, deleteDoc, updateDoc } from 'firebase/firestore';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import { db, auth, googleProvider, OperationType, handleFirestoreError, messaging } from '../firebase';
+import { collection, doc, setDoc, getDocs, deleteDoc, updateDoc, onSnapshot } from 'firebase/firestore';
+import { getToken, onMessage } from 'firebase/messaging';
 import { signInWithPopup } from 'firebase/auth';
 import { Product, AppSettings, Order } from '../types';
 
@@ -54,6 +57,57 @@ export default function AdminPanel({
     return () => unsubscribe();
   }, [onClose, settings]);
 
+  // Real-time notification listener
+  useEffect(() => {
+    const requestFCM = async () => {
+      try {
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+          const token = await getToken(messaging, {
+            vapidKey: 'BPr7sL2-yqR4jY1n7K6S7h8L2x8B2x8B2x8B2x8B2x8B2x8B2x8B2x8B2x8B2x8B2x8B2x8B2x8B2x8B2x8' // This would typically be from env
+          });
+          console.log('FCM Token:', token);
+        }
+      } catch (error) {
+        console.error('Erro ao solicitar permissão/token FCM:', error);
+      }
+    };
+
+    requestFCM();
+
+    // Foreground message handling
+    const unsubscribeMessage = onMessage(messaging, (payload) => {
+      console.log('Mensagem recebida em primeiro plano: ', payload);
+      if (payload.notification) {
+        new Notification(payload.notification.title || 'Novo Pedido', {
+          body: payload.notification.body
+        });
+      }
+    });
+
+    const ordersRef = collection(db, 'orders');
+    const unsubscribeOrders = onSnapshot(ordersRef, (snapshot) => {
+      snapshot.docChanges().forEach((change) => {
+        if (change.type === 'added') {
+          const newOrder = { id: change.doc.id, ...change.doc.data() } as Order;
+          const createdAt = new Date(newOrder.createdAt).getTime();
+          
+          // Notify only if created in the last minute (to avoid old orders)
+          if (Date.now() - createdAt < 60000) {
+            console.log('Novo pedido detectado:', newOrder.id);
+            // Notification is now expected via FCM server-side, 
+            // but for PWA, we can still show a local one if needed or rely on FCM
+          }
+        }
+      });
+    });
+    
+    return () => {
+      unsubscribeOrders();
+      unsubscribeMessage();
+    };
+  }, []);
+
   const adminEmailsList = settings?.adminEmails || ['contaparaplugns@gmail.com', 'sac@lojaispirato.com.br'];
   const isAdminAuthed = !!(
     firebaseUser && 
@@ -70,6 +124,7 @@ export default function AdminPanel({
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
   const [settingsError, setSettingsError] = useState<string | null>(null);
   const [deletingOrder, setDeletingOrder] = useState<string | null>(null);
+  const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
 
   // Product edit/create states
   const [isEditingProduct, setIsEditingProduct] = useState<string | null>(null); // null if creating or inactive
@@ -305,6 +360,81 @@ export default function AdminPanel({
   const handleDeleteOrder = (e: React.MouseEvent, orderId: string) => {
     e.stopPropagation();
     setDeletingOrder(orderId);
+  };
+
+  const generatePDF = () => {
+    try {
+      const doc = new jsPDF();
+      const ordersToExport = orders.filter(o => selectedOrders.includes(o.id));
+
+      if (ordersToExport.length === 0) {
+        alert("Nenhum pedido selecionado.");
+        return;
+      }
+      
+      const drawHeader = (doc: jsPDF) => {
+        doc.setFontSize(18);
+        doc.setTextColor(10, 80, 50); // Emerald color
+        doc.text('Ispirato - Ordem de Pedido', 14, 20);
+        doc.setFontSize(10);
+        doc.setTextColor(100);
+        doc.text('Sistema de Gestão de Pedidos', 14, 26);
+        doc.setDrawColor(10, 80, 50);
+        doc.line(14, 30, 196, 30);
+        doc.setTextColor(0);
+      };
+
+      drawHeader(doc);
+
+      ordersToExport.forEach((order, index) => {
+        if (index > 0) {
+          doc.addPage();
+          drawHeader(doc);
+        }
+        
+        doc.setFontSize(12);
+        doc.text(`Pedido: #${order.id.slice(0, 8)}`, 14, 40);
+        doc.setFontSize(10);
+        doc.text(`Data: ${new Date(order.createdAt).toLocaleString('pt-BR')}`, 14, 46);
+        
+        // Dados Cliente
+        doc.setFontSize(11);
+        doc.text('DADOS DO CLIENTE', 14, 56);
+        doc.setFontSize(10);
+        doc.text(`Nome: ${order.userName}`, 14, 62);
+        doc.text(`E-mail: ${order.userEmail}`, 14, 68);
+        doc.text(`Nota Fiscal: ${order.needsInvoice ? 'Sim' : 'Não'}`, 14, 74);
+        doc.text(`Forma de Pagamento: ${order.paymentMethod.toUpperCase()}`, 14, 80);
+
+        // Tabela Itens
+        const tableColumn = ["Código", "Produto", "Qtd", "V. Unit.", "Subtotal"];
+        const tableRows = order.items.map(item => [
+          item.productId?.replace('✅', '') || '-',
+          item.name,
+          item.quantity.toString(),
+          `R$ ${(item.subtotal / item.quantity).toFixed(2)}`,
+          `R$ ${item.subtotal.toFixed(2)}`
+        ]);
+        
+        autoTable(doc, {
+          head: [tableColumn],
+          body: tableRows,
+          startY: 90,
+          headStyles: { fillColor: [10, 80, 50] },
+        });
+        
+        const finalY = (doc as any).lastAutoTable.finalY;
+        doc.setFontSize(10);
+        doc.text(`Qtd. Total de Itens: ${order.totalQuantity}`, 14, finalY + 10);
+        doc.setFontSize(12);
+        doc.text(`VALOR TOTAL DO PEDIDO: R$ ${order.total.toFixed(2)}`, 14, finalY + 16);
+      });
+      
+      doc.save(`ordem_pedido_expedicao_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}.pdf`);
+    } catch (error) {
+      console.error("Erro ao gerar PDF:", error);
+      alert("Erro ao gerar PDF. Verifique o console.");
+    }
   };
 
   const confirmDelete = async () => {
@@ -1112,14 +1242,29 @@ export default function AdminPanel({
               <h3 className="text-md font-bold text-slate-800">
                 Histórico de Pedidos de Atacado
               </h3>
-              <button 
-                onClick={fetchOrders}
-                disabled={ordersLoading}
-                className="p-2 text-slate-500 hover:text-emerald-700 hover:bg-slate-50 rounded-xl transition-all"
-                title="Recarregar Pedidos"
-              >
-                <RefreshCw className={`w-4 h-4 ${ordersLoading ? 'animate-spin' : ''}`} />
-              </button>
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={() => setSelectedOrders(selectedOrders.length === orders.length ? [] : orders.map(o => o.id))}
+                  className="text-xs font-bold text-emerald-700 hover:text-emerald-800 bg-emerald-50 px-3 py-1.5 rounded-lg transition-all"
+                >
+                  {selectedOrders.length === orders.length ? 'Desmarcar Todos' : 'Selecionar Todos'}
+                </button>
+                <button 
+                  onClick={generatePDF}
+                  disabled={selectedOrders.length === 0}
+                  className={`text-xs font-bold text-white px-3 py-1.5 rounded-lg transition-all ${selectedOrders.length === 0 ? 'bg-slate-300 cursor-not-allowed' : 'bg-rose-600 hover:bg-rose-700'}`}
+                >
+                  Gerar PDF ({selectedOrders.length})
+                </button>
+                <button 
+                  onClick={fetchOrders}
+                  disabled={ordersLoading}
+                  className="p-2 text-slate-500 hover:text-emerald-700 hover:bg-slate-50 rounded-xl transition-all"
+                  title="Recarregar Pedidos"
+                >
+                  <RefreshCw className={`w-4 h-4 ${ordersLoading ? 'animate-spin' : ''}`} />
+                </button>
+              </div>
             </div>
 
             {ordersError && (
@@ -1145,9 +1290,17 @@ export default function AdminPanel({
                   <div key={order.id} className="border-2 border-slate-100 rounded-2xl overflow-hidden shadow-sm">
                     {/* Header */}
                     <div className="bg-slate-50 p-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2">
-                      <div className="text-left">
-                        <p className="text-xs font-bold text-emerald-900">Pedido #{order.id.slice(0, 8)}</p>
-                        <p className="text-[10px] text-slate-500">{new Date(order.createdAt).toLocaleString('pt-BR')}</p>
+                      <div className="flex items-center gap-3">
+                        <input 
+                          type="checkbox"
+                          checked={selectedOrders.includes(order.id)}
+                          onChange={() => setSelectedOrders(prev => prev.includes(order.id) ? prev.filter(id => id !== order.id) : [...prev, order.id])}
+                          className="w-4 h-4 text-emerald-600 rounded cursor-pointer"
+                        />
+                        <div className="text-left">
+                          <p className="text-xs font-bold text-emerald-900">Pedido #{order.id.slice(0, 8)}</p>
+                          <p className="text-[10px] text-slate-500">{new Date(order.createdAt).toLocaleString('pt-BR')}</p>
+                        </div>
                       </div>
 
                       <div className="flex items-center gap-2">

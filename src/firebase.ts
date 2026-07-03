@@ -1,6 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
+import { getMessaging } from "firebase/messaging";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDa32mFDETqjJtz_p7ZWqUoXVi_qB-gJbk",
@@ -19,6 +20,7 @@ const db = getFirestore(app);
 
 const auth = getAuth(app);
 const googleProvider = new GoogleAuthProvider();
+const messaging = getMessaging(app);
 
 export enum OperationType {
   CREATE = 'create',
@@ -67,4 +69,4 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   throw new Error(JSON.stringify(errInfo));
 }
 
-export { app, db, auth, googleProvider };
+export { app, db, auth, googleProvider, messaging };
