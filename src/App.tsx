@@ -158,6 +158,13 @@ export default function App() {
   // Proactive PWA updates check on app load and focus
   useEffect(() => {
     if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/firebase-messaging-sw.js')
+        .then((registration) => {
+          console.log('Service Worker registered with scope:', registration.scope);
+        }).catch((err) => {
+          console.error('Service Worker registration failed:', err);
+        });
+
       // Check on startup
       navigator.serviceWorker.ready.then((registration) => {
         registration.update();
