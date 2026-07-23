@@ -127,7 +127,7 @@ export default function ProductCard({ product, quantity, totalCartQuantity, onQu
           }`}>
             <span className="flex items-center gap-1.5">
               <Tag className={`w-3.5 h-3.5 ${activeTier === 'base' ? 'text-white' : 'text-slate-400'}`} />
-              1 a 11 un (Base)
+              1 a 11 un (Varejo)
             </span>
             <span className="font-mono font-extrabold">R$ {product.prices.base.toFixed(2)}</span>
           </div>

@@ -517,7 +517,10 @@ export default function App() {
     }
 
     const cleanNumber = settings.whatsappNumber.replace(/\D/g, '');
-    const whatsappUrl = `whatsapp://send?phone=${cleanNumber}&text=${encodeURIComponent(msg)}`;
+    const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 768;
+    const whatsappUrl = isDesktop
+      ? `https://web.whatsapp.com/send?phone=${cleanNumber}&text=${encodeURIComponent(msg)}`
+      : `whatsapp://send?phone=${cleanNumber}&text=${encodeURIComponent(msg)}`;
     window.open(whatsappUrl, '_blank');
   };
 
@@ -596,7 +599,7 @@ export default function App() {
             )}
 
             <a
-              href={`whatsapp://send?phone=${settings.whatsappNumber.replace(/\D/g, '')}`}
+              href={typeof window !== 'undefined' && window.innerWidth >= 768 ? `https://web.whatsapp.com/send?phone=${settings.whatsappNumber.replace(/\D/g, '')}` : `whatsapp://send?phone=${settings.whatsappNumber.replace(/\D/g, '')}`}
               target="_blank"
               rel="noreferrer"
               className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-bold text-slate-400 hover:bg-slate-800/50 hover:text-white transition-all"
@@ -1070,7 +1073,7 @@ export default function App() {
 
         {/* WhatsApp Support Tab */}
         <a
-          href={`whatsapp://send?phone=${settings.whatsappNumber.replace(/\D/g, '')}`}
+          href={typeof window !== 'undefined' && window.innerWidth >= 768 ? `https://web.whatsapp.com/send?phone=${settings.whatsappNumber.replace(/\D/g, '')}` : `whatsapp://send?phone=${settings.whatsappNumber.replace(/\D/g, '')}`}
           target="_blank"
           rel="noreferrer"
           className="flex flex-col items-center justify-center flex-1 h-full py-1 text-center text-slate-400 hover:text-slate-600 font-semibold cursor-pointer"

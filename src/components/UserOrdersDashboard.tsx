@@ -115,9 +115,9 @@ export default function UserOrdersDashboard({
 
   const getPaymentMethodLabel = (method: string) => {
     switch (method) {
-      case 'pix': return 'PIX à Vista';
+      case 'pix': return 'PIX à Vista (Chave CNPJ: 40.587.128/0001-18)';
       case 'dinheiro': return 'Espécie na entrega';
-      case 'boleto-30': return 'Boleto (30 dias)';
+      case 'boleto-30': return 'Boleto Bancário (30 dias)';
       case 'boleto-30-60': return 'Boleto Duplo (30/60 dias)';
       default: return method;
     }
@@ -135,6 +135,7 @@ export default function UserOrdersDashboard({
 
     order.items.forEach(item => {
       msg += `\n• *${item.name}*\n`;
+      msg += `  Código: ${item.productId || ''}\n`;
       msg += `  Lote: ${item.quantity} un × R$ ${item.price.toFixed(2)} (${item.tierName || 'Atacado'})\n`;
       msg += `  Subtotal: R$ ${item.subtotal.toFixed(2)}\n`;
     });
@@ -145,7 +146,10 @@ export default function UserOrdersDashboard({
     msg += `_Este é um reenvio de histórico de pedido salvo._`;
 
     const cleanNumber = settings.whatsappNumber.replace(/\D/g, '');
-    const whatsappUrl = `whatsapp://send?phone=${cleanNumber}&text=${encodeURIComponent(msg)}`;
+    const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 768;
+    const whatsappUrl = isDesktop
+      ? `https://web.whatsapp.com/send?phone=${cleanNumber}&text=${encodeURIComponent(msg)}`
+      : `whatsapp://send?phone=${cleanNumber}&text=${encodeURIComponent(msg)}`;
     window.open(whatsappUrl, '_blank');
   };
 
