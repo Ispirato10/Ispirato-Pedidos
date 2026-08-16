@@ -81,7 +81,7 @@ export default function OrderSummary({ products, quantities, paymentMethod, need
               />
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-bold text-slate-800 truncate">{prod.name}</p>
-                <div className="flex items-center gap-1.5 text-[10px] text-slate-500 font-semibold mt-0.5">
+                <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-slate-500 font-semibold mt-0.5">
                   <span>{qty} un × R$ {unitPrice.toFixed(2)}</span>
                   <span className={`px-1 py-0.5 rounded-xs text-[9px] font-extrabold ${
                     tier === 'bulk500' ? 'bg-amber-100 text-amber-700' :
@@ -90,6 +90,18 @@ export default function OrderSummary({ products, quantities, paymentMethod, need
                   }`}>
                     {getTierName(tier)}
                   </span>
+                  {prod.minQty && prod.minQty > 0 && (
+                    <span className={`px-1.5 py-0.5 rounded-xs text-[9px] font-extrabold flex items-center gap-0.5 ${
+                      qty < prod.minQty
+                        ? 'bg-rose-100 text-rose-700 border border-rose-200'
+                        : 'bg-emerald-50 text-emerald-700 border border-emerald-200/60'
+                    }`}>
+                      {qty < prod.minQty 
+                        ? `⚠️ Mín: ${prod.minQty} un (Faltam ${prod.minQty - qty})`
+                        : `✓ Mín. Individual (${prod.minQty} un)`
+                      }
+                    </span>
+                  )}
                 </div>
               </div>
               <div className="text-right shrink-0">

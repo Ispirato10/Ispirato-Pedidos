@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Settings, Database, ClipboardList, Plus, Trash2, Edit2, Check, X, 
-  Save, Phone, Info, ShoppingBag, FileText, CheckCircle, RefreshCw, Layers, LogOut, CreditCard
+  Save, Phone, Info, ShoppingBag, FileText, CheckCircle, RefreshCw, Layers, LogOut, CreditCard,
+  AlertCircle, AlertTriangle
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { db, auth, googleProvider, OperationType, handleFirestoreError, messaging } from '../firebase';
-import { collection, doc, setDoc, getDocs, deleteDoc, updateDoc, onSnapshot } from 'firebase/firestore';
+import { collection, doc, setDoc, getDocs, deleteDoc, updateDoc, onSnapshot, writeBatch } from 'firebase/firestore';
 import { getToken, onMessage } from 'firebase/messaging';
 import { signInWithPopup } from 'firebase/auth';
 import { Product, AppSettings, Order } from '../types';
@@ -127,6 +128,8 @@ export default function AdminPanel({
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
   const [settingsError, setSettingsError] = useState<string | null>(null);
   const [deletingOrder, setDeletingOrder] = useState<string | null>(null);
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
+  const [isDeletingBulk, setIsDeletingBulk] = useState(false);
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
 
   // Product edit/create states
@@ -137,6 +140,7 @@ export default function AdminPanel({
     description: '',
     image: '',
     prices: { base: 0, bulk12: 0, bulk500: 0 },
+    minQty: 0,
     active: true,
     category: 'Suplementos',
     icon: 'fa-leaf'
@@ -286,6 +290,7 @@ export default function AdminPanel({
           bulk12: Number(productForm.prices?.bulk12) || 0,
           bulk500: Number(productForm.prices?.bulk500) || 0,
         },
+        minQty: Number(productForm.minQty) > 0 ? Number(productForm.minQty) : 0,
         active: productForm.active ?? true,
         category: productForm.category || 'Outros',
         icon: productForm.icon || 'fa-leaf'
@@ -301,6 +306,7 @@ export default function AdminPanel({
         description: '',
         image: '',
         prices: { base: 0, bulk12: 0, bulk500: 0 },
+        minQty: 0,
         active: true,
         category: 'Suplementos',
         icon: 'fa-leaf'
@@ -324,7 +330,7 @@ export default function AdminPanel({
 
   const handleEditProductClick = (prod: Product) => {
     setIsEditingProduct(prod.id);
-    setProductForm({ ...prod });
+    setProductForm({ ...prod, minQty: prod.minQty || 0 });
   };
 
   const handleDeleteProduct = async (id: string) => {
@@ -445,6 +451,7 @@ export default function AdminPanel({
     try {
       await deleteDoc(doc(db, 'orders', deletingOrder));
       setOrders(prev => prev.filter(o => o.id !== deletingOrder));
+      setSelectedOrders(prev => prev.filter(id => id !== deletingOrder));
       alert('Pedido excluído com sucesso!');
     } catch (err: any) {
       console.error('Error detalhado ao excluir pedido:', err);
@@ -459,9 +466,81 @@ export default function AdminPanel({
     }
   };
 
+  const confirmBulkDelete = async () => {
+    if (selectedOrders.length === 0) return;
+    setIsDeletingBulk(true);
+    try {
+      const batch = writeBatch(db);
+      selectedOrders.forEach(id => {
+        batch.delete(doc(db, 'orders', id));
+      });
+      await batch.commit();
+
+      const count = selectedOrders.length;
+      setOrders(prev => prev.filter(o => !selectedOrders.includes(o.id)));
+      setSelectedOrders([]);
+      setShowBulkDeleteModal(false);
+      alert(`${count} pedido(s) excluído(s) com sucesso!`);
+    } catch (err: any) {
+      console.error('Erro ao excluir pedidos selecionados:', err);
+      if (err.message && (err.message.includes('permission') || err.message.includes('insufficient'))) {
+        alert('Erro de permissão no Firebase. Você precisa estar autenticado como administrador oficial para excluir.');
+      } else {
+        alert('Erro ao excluir pedidos selecionados: ' + (err.message || String(err)));
+      }
+      handleFirestoreError(err, OperationType.DELETE, 'orders');
+    } finally {
+      setIsDeletingBulk(false);
+    }
+  };
+
   return (
     <div className="bg-slate-50 min-h-screen pb-16">
       {/* Admin Header */}
+      {showBulkDeleteModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95 duration-150">
+            <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mb-4">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <h3 className="text-base font-extrabold text-slate-800 mb-1">
+              Excluir {selectedOrders.length} pedido{selectedOrders.length > 1 ? 's' : ''}?
+            </h3>
+            <p className="text-xs text-slate-500 mb-6 leading-relaxed">
+              Tem certeza de que deseja excluir permanentemente {selectedOrders.length === 1 ? 'o pedido selecionado' : `os ${selectedOrders.length} pedidos selecionados`}? Esta ação removerá os registros do banco de dados e não pode ser desfeita.
+            </p>
+            <div className="flex justify-end gap-2.5">
+              <button 
+                type="button"
+                disabled={isDeletingBulk}
+                onClick={() => setShowBulkDeleteModal(false)}
+                className="px-4 py-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button 
+                type="button"
+                disabled={isDeletingBulk}
+                onClick={confirmBulkDelete}
+                className="px-4 py-2 text-xs font-extrabold text-white bg-rose-600 hover:bg-rose-700 active:scale-95 rounded-xl transition-all flex items-center gap-1.5 shadow-sm shadow-rose-200 cursor-pointer"
+              >
+                {isDeletingBulk ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    Excluindo...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Sim, Excluir ({selectedOrders.length})
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {deletingOrder && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg p-6 max-w-sm w-full shadow-xl">
@@ -1118,6 +1197,33 @@ export default function AdminPanel({
                 </div>
               </div>
 
+              {/* Quantidade Mínima Individual */}
+              <div className="space-y-1 bg-amber-50/50 p-3 rounded-xl border border-amber-200/60 text-left">
+                <label className="text-xs font-extrabold text-amber-900 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
+                    Quantidade Mínima Individual (Opcional)
+                  </span>
+                  <span className="text-[10px] text-amber-700/80 font-bold">
+                    Padrão Geral: {settings.minimumOrderQty} un
+                  </span>
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  className="w-full bg-white border border-amber-200 rounded-lg p-2 text-xs focus:outline-none focus:border-amber-500 font-bold text-slate-800"
+                  value={productForm.minQty || ''}
+                  onChange={(e) => setProductForm({
+                    ...productForm,
+                    minQty: Math.max(0, parseInt(e.target.value) || 0)
+                  })}
+                  placeholder={`0 ou vazio = segue a regra geral (${settings.minimumOrderQty} un)`}
+                />
+                <p className="text-[10px] text-amber-800/90 leading-tight">
+                  Se preenchido (ex: 12), o cliente só poderá adicionar e pedir este produto respeitando esta quantidade mínima. Se deixar vazio ou 0, prevalece a regra geral de {settings.minimumOrderQty} itens no carrinho.
+                </p>
+              </div>
+
               <div className="flex gap-2 pt-2">
                 <div className="flex-1 flex items-center gap-2">
                   <input
@@ -1143,6 +1249,7 @@ export default function AdminPanel({
                         description: '',
                         image: '',
                         prices: { base: 0, bulk12: 0, bulk500: 0 },
+                        minQty: 0,
                         active: true,
                         category: 'Suplementos',
                         icon: 'fa-leaf'
@@ -1175,9 +1282,21 @@ export default function AdminPanel({
 
             {/* List of Products */}
             <div className="lg:col-span-2 bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
-              <h3 className="text-md font-bold text-slate-800 border-b border-slate-100 pb-3 mb-4">
-                Produtos Disponíveis ({products.length})
-              </h3>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3 mb-4">
+                <h3 className="text-md font-bold text-slate-800">
+                  Produtos Disponíveis ({products.length})
+                </h3>
+                <div className="flex items-center gap-2 text-[11px] font-bold">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/80">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                    {products.filter(p => p.active !== false).length} Ativos
+                  </span>
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200/80">
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                    {products.filter(p => p.active === false).length} Inativos
+                  </span>
+                </div>
+              </div>
 
               <div className="space-y-3 max-h-[550px] overflow-y-auto pr-2">
                 {products.length === 0 ? (
@@ -1187,25 +1306,54 @@ export default function AdminPanel({
                     <div 
                       key={prod.id} 
                       className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-2xl border transition-all ${
-                        prod.active 
+                        prod.active !== false 
                           ? 'border-slate-100 bg-slate-50 hover:bg-slate-100/50' 
-                          : 'border-rose-100 bg-rose-50/20 opacity-70'
+                          : 'border-rose-200/80 bg-rose-50/40 hover:bg-rose-50/60'
                       }`}
                     >
                       <div className="flex items-start sm:items-center gap-3">
-                        <img 
-                          src={prod.image} 
-                          alt={prod.name} 
-                          className="w-12 h-12 sm:w-11 sm:h-11 object-contain bg-white rounded-lg p-1 border border-slate-200 shrink-0"
-                        />
+                        <div className="relative shrink-0">
+                          <img 
+                            src={prod.image} 
+                            alt={prod.name} 
+                            className={`w-12 h-12 sm:w-11 sm:h-11 object-contain bg-white rounded-lg p-1 border shrink-0 ${
+                              prod.active !== false ? 'border-slate-200' : 'border-rose-200 grayscale-[40%]'
+                            }`}
+                          />
+                        </div>
                         <div className="text-left min-w-0 flex-1">
-                          <p className="text-xs font-bold text-slate-800 leading-snug">{prod.name}</p>
-                          <p className="text-[10px] text-slate-500 font-semibold mt-0.5">Cód: {prod.id} {prod.active ? '' : '• Inativo'}</p>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="text-xs font-bold text-slate-800 leading-snug">{prod.name}</p>
+                            {prod.active !== false ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-black bg-emerald-100 text-emerald-800 border border-emerald-200 shadow-3xs">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                ATIVO
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-black bg-rose-100 text-rose-800 border border-rose-200 shadow-3xs">
+                                <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                                INATIVO (Oculto)
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-slate-500 font-semibold mt-0.5">
+                            Cód: <span className="font-mono text-slate-700">{prod.id}</span> • Categoria: <span className="text-slate-700">{prod.category || 'Outros'}</span>
+                          </p>
                           <div className="flex flex-wrap items-center gap-1.5 mt-1 text-[10px] font-bold text-emerald-800">
                             <span className="bg-emerald-50 text-emerald-800 px-1.5 py-0.5 rounded border border-emerald-100/50">U: R$ {prod.prices.base.toFixed(2)}</span>
                             <span className="bg-emerald-50 text-emerald-800 px-1.5 py-0.5 rounded border border-emerald-100/50">A12+: R$ {prod.prices.bulk12.toFixed(2)}</span>
                             {prod.prices.bulk500 > 0 && (
                               <span className="bg-emerald-50 text-emerald-800 px-1.5 py-0.5 rounded border border-emerald-100/50">A500+: R$ {prod.prices.bulk500.toFixed(2)}</span>
+                            )}
+                            {prod.minQty && prod.minQty > 0 ? (
+                              <span className="bg-amber-100 text-amber-900 px-1.5 py-0.5 rounded border border-amber-200 font-extrabold flex items-center gap-1 text-[9px]">
+                                <AlertCircle className="w-3 h-3 text-amber-700" />
+                                Mín. Individual: {prod.minQty} un
+                              </span>
+                            ) : (
+                              <span className="bg-slate-200/70 text-slate-600 px-1.5 py-0.5 rounded text-[9px] font-semibold">
+                                Mín. Geral ({settings.minimumOrderQty} un)
+                              </span>
                             )}
                           </div>
                         </div>
@@ -1245,24 +1393,39 @@ export default function AdminPanel({
               <h3 className="text-md font-bold text-slate-800">
                 Histórico de Pedidos de Atacado
               </h3>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <button 
                   onClick={() => setSelectedOrders(selectedOrders.length === orders.length ? [] : orders.map(o => o.id))}
-                  className="text-xs font-bold text-emerald-700 hover:text-emerald-800 bg-emerald-50 px-3 py-1.5 rounded-lg transition-all"
+                  disabled={orders.length === 0}
+                  className={`text-xs font-bold px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                    orders.length === 0 
+                      ? 'text-slate-400 bg-slate-100 cursor-not-allowed' 
+                      : 'text-emerald-700 hover:text-emerald-800 bg-emerald-50 active:scale-95'
+                  }`}
                 >
-                  {selectedOrders.length === orders.length ? 'Desmarcar Todos' : 'Selecionar Todos'}
+                  {selectedOrders.length > 0 && selectedOrders.length === orders.length ? 'Desmarcar Todos' : 'Selecionar Todos'}
                 </button>
                 <button 
                   onClick={generatePDF}
                   disabled={selectedOrders.length === 0}
-                  className={`text-xs font-bold text-white px-3 py-1.5 rounded-lg transition-all ${selectedOrders.length === 0 ? 'bg-slate-300 cursor-not-allowed' : 'bg-rose-600 hover:bg-rose-700'}`}
+                  className={`text-xs font-bold text-white px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${selectedOrders.length === 0 ? 'bg-slate-300 cursor-not-allowed' : 'bg-slate-800 hover:bg-slate-900 active:scale-95 cursor-pointer shadow-sm'}`}
                 >
+                  <FileText className="w-3.5 h-3.5" />
                   Gerar PDF ({selectedOrders.length})
+                </button>
+                <button 
+                  onClick={() => setShowBulkDeleteModal(true)}
+                  disabled={selectedOrders.length === 0}
+                  className={`text-xs font-bold text-white px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${selectedOrders.length === 0 ? 'bg-slate-300 cursor-not-allowed' : 'bg-rose-600 hover:bg-rose-700 active:scale-95 cursor-pointer shadow-sm'}`}
+                  title="Excluir pedidos selecionados"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Excluir Selecionados ({selectedOrders.length})
                 </button>
                 <button 
                   onClick={fetchOrders}
                   disabled={ordersLoading}
-                  className="p-2 text-slate-500 hover:text-emerald-700 hover:bg-slate-50 rounded-xl transition-all"
+                  className="p-2 text-slate-500 hover:text-emerald-700 hover:bg-slate-50 rounded-xl transition-all cursor-pointer"
                   title="Recarregar Pedidos"
                 >
                   <RefreshCw className={`w-4 h-4 ${ordersLoading ? 'animate-spin' : ''}`} />

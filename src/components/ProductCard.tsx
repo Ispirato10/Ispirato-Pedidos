@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sparkles, Minus, Plus, Tag, Layers, Flame } from 'lucide-react';
+import { Sparkles, Minus, Plus, Tag, Layers, Flame, AlertCircle } from 'lucide-react';
 import { Product } from '../types';
 
 interface ProductCardProps {
@@ -11,7 +11,11 @@ interface ProductCardProps {
 }
 
 export default function ProductCard({ product, quantity, totalCartQuantity, onQuantityChange }: ProductCardProps) {
-  
+  const hasIndividualMin = Boolean(product.minQty && product.minQty > 0);
+  const minQty = product.minQty || 0;
+  const isIndividualMinNotMet = hasIndividualMin && quantity > 0 && quantity < minQty;
+  const isIndividualMinMet = hasIndividualMin && quantity >= minQty;
+
   const getActiveTier = (qty: number) => {
     if (qty === 0) return null;
     if (qty >= 500 && product.prices.bulk500) return 'bulk500';
@@ -35,9 +39,20 @@ export default function ProductCard({ product, quantity, totalCartQuantity, onQu
     return Math.round(((from - to) / from) * 100);
   };
 
+  const baseTierLabel = (() => {
+    if (hasIndividualMin && minQty > 1) {
+      if (minQty < 11) return `${minQty} a 11 un (Varejo)`;
+      if (minQty === 11) return `11 un (Varejo)`;
+      return `${minQty}+ un (Varejo)`;
+    }
+    return '1 a 11 un (Varejo)';
+  })();
+
   return (
     <div className={`bg-white rounded-2xl border transition-all duration-300 overflow-hidden flex flex-col justify-between group ${
-      quantity > 0 
+      isIndividualMinNotMet
+        ? 'border-amber-400 ring-2 ring-amber-400/20 shadow-lg shadow-amber-500/5 -translate-y-0.5'
+        : quantity > 0 
         ? 'border-emerald-500 ring-2 ring-emerald-500/10 shadow-lg shadow-emerald-500/5 -translate-y-0.5' 
         : 'border-slate-200 hover:border-slate-300 hover:shadow-md hover:-translate-y-0.5 shadow-2xs'
     }`}>
@@ -58,9 +73,17 @@ export default function ProductCard({ product, quantity, totalCartQuantity, onQu
           <span className="bg-slate-900/90 backdrop-blur-xs text-white text-[9px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider">
             {product.category || 'Natural'}
           </span>
+          {hasIndividualMin && (
+            <span className="bg-amber-500 text-slate-950 text-[9px] font-black px-2 py-0.5 rounded-full shadow-xs flex items-center gap-1 border border-amber-300">
+              <AlertCircle className="w-2.5 h-2.5 shrink-0" />
+              Mín. {minQty} un
+            </span>
+          )}
           {quantity > 0 && (
-            <span className="bg-emerald-600 text-white text-[9px] font-extrabold px-2 py-0.5 rounded-full shadow-sm animate-pulse">
-              No Carrinho
+            <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full shadow-sm animate-pulse ${
+              isIndividualMinNotMet ? 'bg-amber-600 text-white' : 'bg-emerald-600 text-white'
+            }`}>
+              {isIndividualMinNotMet ? 'Mínimo Pendente' : 'No Carrinho'}
             </span>
           )}
         </div>
@@ -83,6 +106,43 @@ export default function ProductCard({ product, quantity, totalCartQuantity, onQu
             {product.description}
           </p>
         </div>
+
+        {/* Individual Minimum Requirement Notice Banner */}
+        {hasIndividualMin && (
+          <div className={`mt-2.5 p-2 rounded-xl border text-[11px] text-left transition-all ${
+            isIndividualMinNotMet
+              ? 'bg-amber-50 border-amber-300 text-amber-900 animate-shake'
+              : isIndividualMinMet
+              ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+              : 'bg-amber-50/70 border-amber-200/70 text-amber-900'
+          }`}>
+            <div className="flex items-center gap-1.5 font-extrabold">
+              <AlertCircle className={`w-3.5 h-3.5 shrink-0 ${
+                isIndividualMinNotMet
+                  ? 'text-amber-600'
+                  : isIndividualMinMet
+                  ? 'text-emerald-600'
+                  : 'text-amber-600'
+              }`} />
+              <span>Produto com Mínimo Individual: <strong className="font-black underline decoration-amber-400">{minQty} un</strong></span>
+            </div>
+            <p className="text-[10px] mt-0.5 leading-snug">
+              {isIndividualMinNotMet ? (
+                <span className="text-amber-800 font-bold">
+                  ⚠️ Faltam <strong className="font-black text-amber-900">{minQty - quantity} un</strong> para atingir a quantidade mínima deste item!
+                </span>
+              ) : isIndividualMinMet ? (
+                <span className="text-emerald-700 font-semibold">
+                  ✓ Quantidade mínima individual atendida ({quantity} un).
+                </span>
+              ) : (
+                <span className="text-amber-800/80 font-medium">
+                  Este produto exige no mínimo {minQty} unidades no seu pedido.
+                </span>
+              )}
+            </p>
+          </div>
+        )}
 
         {/* Dynamic Discount & Tier Progress Bar */}
         {quantity > 0 && (
@@ -127,7 +187,7 @@ export default function ProductCard({ product, quantity, totalCartQuantity, onQu
           }`}>
             <span className="flex items-center gap-1.5">
               <Tag className={`w-3.5 h-3.5 ${activeTier === 'base' ? 'text-white' : 'text-slate-400'}`} />
-              1 a 11 un (Varejo)
+              {baseTierLabel}
             </span>
             <span className="font-mono font-extrabold">R$ {product.prices.base.toFixed(2)}</span>
           </div>
@@ -174,7 +234,11 @@ export default function ProductCard({ product, quantity, totalCartQuantity, onQu
           <div className="flex items-center justify-between gap-2">
             <span className="text-[10px] text-slate-400 font-bold font-mono uppercase tracking-wider">Quantidade</span>
             
-            <div className="flex items-center bg-slate-100 border border-slate-200/60 rounded-xl p-1 transition-all focus-within:ring-2 focus-within:ring-emerald-500/10">
+            <div className={`flex items-center bg-slate-100 border rounded-xl p-1 transition-all focus-within:ring-2 ${
+              isIndividualMinNotMet
+                ? 'border-amber-400 focus-within:ring-amber-500/20 bg-amber-50/30'
+                : 'border-slate-200/60 focus-within:ring-emerald-500/10'
+            }`}>
               <button
                 type="button"
                 onClick={() => onQuantityChange(product.id, Math.max(0, quantity - 1))}
@@ -187,7 +251,9 @@ export default function ProductCard({ product, quantity, totalCartQuantity, onQu
               <input
                 type="number"
                 min="0"
-                className="w-11 h-7 border-none bg-transparent focus:outline-none text-center text-xs font-extrabold text-slate-800"
+                className={`w-11 h-7 border-none bg-transparent focus:outline-none text-center text-xs font-extrabold ${
+                  isIndividualMinNotMet ? 'text-amber-800' : 'text-slate-800'
+                }`}
                 value={quantity || ''}
                 onChange={(e) => onQuantityChange(product.id, Math.max(0, parseInt(e.target.value) || 0))}
                 placeholder="0"
@@ -195,8 +261,19 @@ export default function ProductCard({ product, quantity, totalCartQuantity, onQu
 
               <button
                 type="button"
-                onClick={() => onQuantityChange(product.id, quantity + 1)}
-                className="w-7 h-7 rounded-lg bg-slate-900 hover:bg-slate-800 text-white flex items-center justify-center transition-all cursor-pointer active:scale-90 shadow-sm"
+                onClick={() => {
+                  if (quantity === 0 && hasIndividualMin && minQty > 1) {
+                    onQuantityChange(product.id, minQty);
+                  } else {
+                    onQuantityChange(product.id, quantity + 1);
+                  }
+                }}
+                className={`w-7 h-7 rounded-lg text-white flex items-center justify-center transition-all cursor-pointer active:scale-90 shadow-sm ${
+                  hasIndividualMin && quantity === 0
+                    ? 'bg-amber-600 hover:bg-amber-700'
+                    : 'bg-slate-900 hover:bg-slate-800'
+                }`}
+                title={hasIndividualMin && quantity === 0 ? `Adicionar quantidade mínima (${minQty} un)` : 'Adicionar 1 un'}
               >
                 <Plus className="w-3.5 h-3.5" />
               </button>

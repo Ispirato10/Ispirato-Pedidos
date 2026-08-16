@@ -249,6 +249,7 @@ export default function App() {
                 bulk12: Number(data.prices?.bulk12 ?? data.priceBulk ?? 0),
                 bulk500: Number(data.prices?.bulk500 ?? data.priceBulk500 ?? 0)
               },
+              minQty: data.minQty ? Number(data.minQty) : 0,
               active: data.active ?? true,
               category: data.category || 'Outros',
               icon: data.icon || 'fa-leaf'
@@ -448,8 +449,15 @@ export default function App() {
       return sum + (getPriceByQty(p, qty) * qty);
     }, 0);
 
+    const itemsBelowIndividualMin = selectedItems.filter(p => p.minQty && p.minQty > 0 && (quantities[p.id] || 0) < p.minQty);
+    if (itemsBelowIndividualMin.length > 0) {
+      const firstErr = itemsBelowIndividualMin[0];
+      alert(`O produto "${firstErr.name}" exige quantidade mínima individual de ${firstErr.minQty} unidades (você selecionou ${quantities[firstErr.id]} un). Por favor, ajuste a quantidade antes de enviar.`);
+      return;
+    }
+
     if (totalQty < settings.minimumOrderQty) {
-      alert(`Quantidade mínima de ${settings.minimumOrderQty} produtos não atingida.`);
+      alert(`Quantidade mínima geral de ${settings.minimumOrderQty} produtos não atingida.`);
       return;
     }
 
@@ -991,6 +999,8 @@ export default function App() {
                       {/* Checkout reseller credentials info */}
                       <OrderForm 
                         settings={settings}
+                        products={products}
+                        quantities={quantities}
                         totalQuantity={totalQuantity}
                         totalValue={totalValue}
                         currentUser={currentUser}

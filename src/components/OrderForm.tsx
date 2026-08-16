@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { User, Mail, CreditCard, FileText, Info, AlertTriangle, Send } from 'lucide-react';
-import { AppSettings, PaymentMethodOption } from '../types';
+import { AppSettings, PaymentMethodOption, Product } from '../types';
 
 interface OrderFormProps {
   settings: AppSettings;
+  products?: Product[];
+  quantities?: Record<string, number>;
   totalQuantity: number;
   totalValue: number;
   currentUser: { uid: string; displayName?: string | null; email?: string | null; isAnonymous: boolean } | null;
@@ -22,7 +24,7 @@ const DEFAULT_PAYMENT_METHODS: PaymentMethodOption[] = [
   { id: 'boleto-30-60', label: 'Faturamento: Boleto Bancário Duplo (30/60 dias)', instructions: 'Faturamento em duas parcelas de boleto bancário (30 e 60 dias). Sujeito a análise prévia de crédito de CNPJ de atacado.', active: true }
 ];
 
-export default function OrderForm({ settings, totalQuantity, totalValue, currentUser, onSubmit }: OrderFormProps) {
+export default function OrderForm({ settings, products = [], quantities = {}, totalQuantity, totalValue, currentUser, onSubmit }: OrderFormProps) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('');
@@ -39,16 +41,32 @@ export default function OrderForm({ settings, totalQuantity, totalValue, current
     }
   }, [currentUser]);
 
+  // Check for items that violate individual minimum quantity rules
+  const itemsBelowIndividualMin = products
+    .filter(p => (quantities[p.id] || 0) > 0 && p.minQty && p.minQty > 0 && (quantities[p.id] || 0) < p.minQty)
+    .map(p => ({
+      product: p,
+      qty: quantities[p.id] || 0,
+      minQty: p.minQty!
+    }));
+
+  const hasIndividualMinError = itemsBelowIndividualMin.length > 0;
+  const isGeneralMinMet = totalQuantity >= settings.minimumOrderQty;
+  const isMinMet = isGeneralMinMet && !hasIndividualMinError;
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (itemsBelowIndividualMin.length > 0) {
+      const firstErr = itemsBelowIndividualMin[0];
+      alert(`O produto "${firstErr.product.name}" exige quantidade mínima individual de ${firstErr.minQty} unidades (você selecionou ${firstErr.qty} un). Por favor, ajuste a quantidade.`);
+      return;
+    }
     if (totalQuantity < settings.minimumOrderQty) {
-      alert(`O pedido mínimo é de ${settings.minimumOrderQty} itens.`);
+      alert(`O pedido mínimo geral é de ${settings.minimumOrderQty} itens.`);
       return;
     }
     onSubmit({ name, email, paymentMethod, needsInvoice });
   };
-
-  const isMinMet = totalQuantity >= settings.minimumOrderQty;
 
   const paymentMethodsList = (settings.paymentMethods && settings.paymentMethods.length > 0 
     ? settings.paymentMethods 
@@ -174,13 +192,32 @@ export default function OrderForm({ settings, totalQuantity, totalValue, current
         )}
 
         {/* Quantities warnings and restrictions */}
-        {!isMinMet && totalQuantity > 0 && (
+        {hasIndividualMinError && (
+          <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2.5 text-left animate-shake">
+            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <p className="text-[11px] font-extrabold text-amber-900">Mínimo Individual Não Atingido</p>
+              <p className="text-[10px] text-amber-800 leading-snug">
+                Os seguintes itens possuem regra de quantidade mínima individual que precisa ser respeitada:
+              </p>
+              <ul className="list-disc pl-4 text-[10px] text-amber-900 font-semibold space-y-0.5 mt-1">
+                {itemsBelowIndividualMin.map(item => (
+                  <li key={item.product.id}>
+                    <strong>{item.product.name}</strong>: {item.qty} de {item.minQty} un (faltam {item.minQty - item.qty} un)
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        )}
+
+        {!isGeneralMinMet && totalQuantity > 0 && (
           <div className="p-3 bg-red-50 border border-red-100 rounded-lg flex items-start gap-2.5 text-left animate-shake">
             <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
             <div>
-              <p className="text-[11px] font-bold text-red-800">Pedido Mínimo Não Atingido</p>
+              <p className="text-[11px] font-bold text-red-800">Pedido Mínimo Geral Não Atingido</p>
               <p className="text-[10px] text-red-600 leading-relaxed mt-0.5 font-medium">
-                Para consolidar as condições especiais, selecione pelo menos <strong className="font-extrabold">{settings.minimumOrderQty} unidades</strong>. Atualmente você possui <strong className="font-extrabold">{totalQuantity} un</strong>.
+                Para consolidar as condições especiais, selecione pelo menos <strong className="font-extrabold">{settings.minimumOrderQty} unidades</strong> no total. Atualmente você possui <strong className="font-extrabold">{totalQuantity} un</strong>.
               </p>
             </div>
           </div>
@@ -203,9 +240,13 @@ export default function OrderForm({ settings, totalQuantity, totalValue, current
           
           <span className="relative z-10 flex items-center justify-center gap-1 text-xs font-black uppercase tracking-wider text-white">
             <Send className="w-4 h-4 shrink-0" />
-            {totalQuantity > 0 
-              ? `Fechar via WhatsApp (${totalQuantity} un)`
-              : 'Adicione produtos'
+            {totalQuantity === 0 
+              ? 'Adicione produtos'
+              : hasIndividualMinError
+              ? `Ajuste mínimos individuais`
+              : !isGeneralMinMet
+              ? `Mínimo geral (${totalQuantity}/${settings.minimumOrderQty} un)`
+              : `Fechar via WhatsApp (${totalQuantity} un)`
             }
           </span>
         </button>
