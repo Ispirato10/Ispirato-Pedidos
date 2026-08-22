@@ -6,11 +6,10 @@ import {
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { db, auth, googleProvider, OperationType, handleFirestoreError, messaging } from '../firebase';
+import { db, auth, googleProvider, OperationType, handleFirestoreError } from '../firebase';
 import { collection, doc, setDoc, getDocs, deleteDoc, updateDoc, onSnapshot, writeBatch } from 'firebase/firestore';
-import { getToken, onMessage } from 'firebase/messaging';
 import { signInWithPopup } from 'firebase/auth';
-import { Product, AppSettings, Order } from '../types';
+import { Product, AppSettings, Order, getPaymentMethodLabel } from '../types';
 
 interface AdminPanelProps {
   settings: AppSettings;
@@ -58,33 +57,14 @@ export default function AdminPanel({
     return () => unsubscribe();
   }, [onClose, settings]);
 
-  // Real-time notification listener
+  // Real-time notification listener for new orders using Firestore onSnapshot
   useEffect(() => {
-    const requestFCM = async () => {
-      try {
-        const permission = await Notification.requestPermission();
-        if (permission === 'granted') {
-          const token = await getToken(messaging, {
-            vapidKey: 'BPr7sL2-yqR4jY1n7K6S7h8L2x8B2x8B2x8B2x8B2x8B2x8B2x8B2x8B2x8B2x8B2x8B2x8B2x8B2x8B2x8' // This would typically be from env
-          });
-          console.log('FCM Token:', token);
-        }
-      } catch (error) {
-        console.error('Erro ao solicitar permissão/token FCM:', error);
+    // Request browser notification permission if available
+    if (typeof Notification !== 'undefined' && Notification.requestPermission) {
+      if (Notification.permission === 'default') {
+        Notification.requestPermission().catch(() => {});
       }
-    };
-
-    requestFCM();
-
-    // Foreground message handling
-    const unsubscribeMessage = onMessage(messaging, (payload) => {
-      console.log('Mensagem recebida em primeiro plano: ', payload);
-      if (payload.notification) {
-        new Notification(payload.notification.title || 'Novo Pedido', {
-          body: payload.notification.body
-        });
-      }
-    });
+    }
 
     const ordersRef = collection(db, 'orders');
     const unsubscribeOrders = onSnapshot(ordersRef, (snapshot) => {
@@ -96,10 +76,14 @@ export default function AdminPanel({
           // Notify only if created in the last minute (to avoid old orders)
           if (Date.now() - createdAt < 60000) {
             console.log('Novo pedido detectado:', newOrder.id);
-            if (Notification.permission === 'granted') {
-              new Notification(`Novo Pedido de ${newOrder.userName || 'Cliente'}!`, {
-                body: `Pedido #${newOrder.id.slice(0, 8)}`
-              });
+            if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+              try {
+                new Notification(`Novo Pedido de ${newOrder.userName || 'Cliente'}!`, {
+                  body: `Pedido #${newOrder.id.slice(0, 8)}`
+                });
+              } catch (e) {
+                console.warn('Erro ao disparar notificação local:', e);
+              }
             }
           }
         }
@@ -108,7 +92,6 @@ export default function AdminPanel({
     
     return () => {
       unsubscribeOrders();
-      unsubscribeMessage();
     };
   }, []);
 
@@ -211,19 +194,34 @@ export default function AdminPanel({
     });
   };
 
-  const handleRemovePaymentMethod = (id: string) => {
-    const currentMethods = editSettings.paymentMethods || [];
+  const handleRemovePaymentMethod = (index: number) => {
+    const currentMethods = [...(editSettings.paymentMethods || [])];
+    currentMethods.splice(index, 1);
     setEditSettings({
       ...editSettings,
-      paymentMethods: currentMethods.filter(m => m.id !== id)
+      paymentMethods: currentMethods
     });
   };
 
-  const handlePaymentMethodChange = (id: string, field: 'label' | 'instructions' | 'active', value: any) => {
-    const currentMethods = editSettings.paymentMethods || [];
+  const handlePaymentMethodChange = (index: number, field: 'label' | 'instructions' | 'active', value: any) => {
+    const currentMethods = [...(editSettings.paymentMethods || [])];
+    if (currentMethods[index]) {
+      currentMethods[index] = { ...currentMethods[index], [field]: value };
+    }
     setEditSettings({
       ...editSettings,
-      paymentMethods: currentMethods.map(m => m.id === id ? { ...m, [field]: value } : m)
+      paymentMethods: currentMethods
+    });
+  };
+
+  const handlePaymentMethodIdChange = (index: number, newId: string) => {
+    const currentMethods = [...(editSettings.paymentMethods || [])];
+    if (currentMethods[index]) {
+      currentMethods[index] = { ...currentMethods[index], id: newId.trim() };
+    }
+    setEditSettings({
+      ...editSettings,
+      paymentMethods: currentMethods
     });
   };
 
@@ -413,7 +411,7 @@ export default function AdminPanel({
         doc.text(`Nome: ${order.userName}`, 14, 62);
         doc.text(`E-mail: ${order.userEmail}`, 14, 68);
         doc.text(`Nota Fiscal: ${order.needsInvoice ? 'Sim' : 'Não'}`, 14, 74);
-        doc.text(`Forma de Pagamento: ${order.paymentMethod.toUpperCase()}`, 14, 80);
+        doc.text(`Forma de Pagamento: ${getPaymentMethodLabel(order.paymentMethod, settings.paymentMethods)}`, 14, 80);
 
         // Tabela Itens
         const tableColumn = ["Código", "Produto", "Qtd", "V. Unit.", "Subtotal"];
@@ -962,23 +960,36 @@ export default function AdminPanel({
 
               <div className="space-y-3.5">
                 {(editSettings.paymentMethods || []).map((method, index) => (
-                  <div key={method.id} className="bg-slate-50 border border-slate-200 rounded-2xl p-4 relative space-y-3">
+                  <div key={`pm-${index}`} className="bg-slate-50 border border-slate-200 rounded-2xl p-4 relative space-y-3">
                     <button
                       type="button"
-                      onClick={() => handleRemovePaymentMethod(method.id)}
+                      onClick={() => handleRemovePaymentMethod(index)}
                       className="absolute top-3.5 right-3.5 text-rose-500 hover:text-rose-700 p-1.5 bg-white hover:bg-rose-50 border border-slate-200 rounded-lg transition-all cursor-pointer"
                       title="Remover forma de pagamento"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
 
-                    <div className="flex items-center gap-3 pr-10">
-                      <span className="text-[10px] font-black uppercase text-slate-400 bg-slate-200/60 px-2 py-0.5 rounded">
-                        Forma #{index + 1} ({method.id})
-                      </span>
+                    <div className="flex flex-wrap items-center justify-between gap-3 pr-10">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-black uppercase text-slate-400 bg-slate-200/60 px-2 py-0.5 rounded">
+                          Forma #{index + 1}
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <label className="text-[10px] font-bold text-slate-500">ID/Chave:</label>
+                          <input
+                            type="text"
+                            className="border border-slate-200 focus:border-emerald-600 rounded px-2 py-1 text-xs font-mono bg-white text-slate-700 w-56 sm:w-64 font-semibold"
+                            value={method.id}
+                            onChange={(e) => handlePaymentMethodIdChange(index, e.target.value)}
+                            placeholder="ex: pix_parcelado"
+                            required
+                          />
+                        </div>
+                      </div>
                       <button
                         type="button"
-                        onClick={() => handlePaymentMethodChange(method.id, 'active', !(method.active !== false))}
+                        onClick={() => handlePaymentMethodChange(index, 'active', !(method.active !== false))}
                         className={`flex items-center gap-1.5 text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-lg border transition-all cursor-pointer ${
                           method.active !== false 
                             ? 'bg-emerald-50 text-emerald-700 border-emerald-200/60 hover:bg-emerald-100' 
@@ -997,7 +1008,7 @@ export default function AdminPanel({
                           type="text"
                           className="w-full border border-slate-200 focus:border-emerald-600 rounded-lg p-2.5 text-xs focus:outline-none transition-all font-semibold text-slate-800"
                           value={method.label}
-                          onChange={(e) => handlePaymentMethodChange(method.id, 'label', e.target.value)}
+                          onChange={(e) => handlePaymentMethodChange(index, 'label', e.target.value)}
                           placeholder="PIX à vista (CNPJ: ...)"
                           required
                         />
@@ -1008,7 +1019,7 @@ export default function AdminPanel({
                         <textarea
                           className="w-full border border-slate-200 focus:border-emerald-600 rounded-lg p-2.5 text-xs focus:outline-none transition-all h-16 font-semibold text-slate-700 leading-relaxed"
                           value={method.instructions}
-                          onChange={(e) => handlePaymentMethodChange(method.id, 'instructions', e.target.value)}
+                          onChange={(e) => handlePaymentMethodChange(index, 'instructions', e.target.value)}
                           placeholder="Instruções de como o cliente realiza o pagamento..."
                           required
                         />
@@ -1471,7 +1482,7 @@ export default function AdminPanel({
 
                       <div className="flex items-center gap-2">
                         <span className="text-[11px] font-bold text-slate-600 bg-slate-200/60 px-2.5 py-1 rounded-full">
-                          {order.paymentMethod.toUpperCase()}
+                          {getPaymentMethodLabel(order.paymentMethod, settings.paymentMethods)}
                         </span>
                         
                         <select

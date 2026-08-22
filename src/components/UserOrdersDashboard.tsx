@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { db, OperationType, handleFirestoreError } from '../firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
-import { Order, AppSettings } from '../types';
+import { Order, AppSettings, getPaymentMethodLabel } from '../types';
 
 interface UserOrdersDashboardProps {
   currentUser: { uid: string; email?: string | null; isAnonymous: boolean } | null;
@@ -113,14 +113,8 @@ export default function UserOrdersDashboard({
     }
   };
 
-  const getPaymentMethodLabel = (method: string) => {
-    switch (method) {
-      case 'pix': return 'PIX à Vista (Chave CNPJ: 40.587.128/0001-18)';
-      case 'dinheiro': return 'Espécie na entrega';
-      case 'boleto-30': return 'Boleto Bancário (30 dias)';
-      case 'boleto-30-60': return 'Boleto Duplo (30/60 dias)';
-      default: return method;
-    }
+  const getPaymentMethodLabelFn = (method: string) => {
+    return getPaymentMethodLabel(method, settings.paymentMethods);
   };
 
   const handleResendToWhatsapp = (order: Order) => {
@@ -128,7 +122,7 @@ export default function UserOrdersDashboard({
     msg += `\uD83C\uDD94 *ID do Pedido:* ${order.id.slice(0, 8)}...\n\n`;
     msg += `\uD83D\uDC64 *Revendedor:* ${order.userName}\n`;
     msg += `\uD83D\uDCE7 *E-mail:* ${order.userEmail}\n`;
-    msg += `\uD83D\uDCB3 *Faturamento:* ${getPaymentMethodLabel(order.paymentMethod)}\n`;
+    msg += `\uD83D\uDCB3 *Faturamento:* ${getPaymentMethodLabelFn(order.paymentMethod)}\n`;
     msg += `\uD83D\uDCC4 *Nota Fiscal:* ${order.needsInvoice ? 'Sim, emitir NF-e' : 'Não necessita'}\n`;
     msg += `━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
     msg += `\uD83D\uDCE6 *ITENS DO PEDIDO:*\n`;
@@ -312,7 +306,7 @@ export default function UserOrdersDashboard({
                       <p className="text-[10px] font-extrabold text-slate-400 uppercase">Faturamento Escolhido</p>
                       <p className="font-bold text-slate-800 mt-0.5 flex items-center gap-1">
                         <CreditCard className="w-3.5 h-3.5 text-slate-400" />
-                        {getPaymentMethodLabel(selectedOrder.paymentMethod)}
+                        {getPaymentMethodLabelFn(selectedOrder.paymentMethod)}
                       </p>
                       <p className="text-[11px] text-slate-500 font-medium mt-0.5 flex items-center gap-1">
                         <FileText className="w-3.5 h-3.5 text-slate-400" />

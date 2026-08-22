@@ -1,9 +1,8 @@
-import { initializeApp } from "firebase/app";
+import { initializeApp, getApps, getApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
-import { getMessaging } from "firebase/messaging";
 
-const firebaseConfig = {
+export const firebaseConfig = {
   apiKey: "AIzaSyDa32mFDETqjJtz_p7ZWqUoXVi_qB-gJbk",
   authDomain: "ispirato-pedidos-pwa.firebaseapp.com",
   projectId: "ispirato-pedidos-pwa",
@@ -13,14 +12,11 @@ const firebaseConfig = {
   measurementId: "G-STWTD2MFN2"
 };
 
-const app = initializeApp(firebaseConfig);
-
-// Initialize Firestore (using default database for the custom user project)
-const db = getFirestore(app);
-
-const auth = getAuth(app);
-const googleProvider = new GoogleAuthProvider();
-const messaging = getMessaging(app);
+export const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+export const db = getFirestore(app);
+export const auth = getAuth(app);
+export const googleProvider = new GoogleAuthProvider();
+googleProvider.setCustomParameters({ prompt: 'select_account' });
 
 export enum OperationType {
   CREATE = 'create',
@@ -45,7 +41,7 @@ export interface FirestoreErrorInfo {
       providerId?: string | null;
       email?: string | null;
     }[];
-  }
+  };
 }
 
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
@@ -68,5 +64,3 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   console.error('Firestore Error: ', JSON.stringify(errInfo));
   throw new Error(JSON.stringify(errInfo));
 }
-
-export { app, db, auth, googleProvider, messaging };

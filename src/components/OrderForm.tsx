@@ -142,8 +142,8 @@ export default function OrderForm({ settings, products = [], quantities = {}, to
             required
           >
             <option value="" className="font-semibold text-slate-400">Escolha a condição de faturamento</option>
-            {paymentMethodsList.map((method) => (
-              <option key={method.id} value={method.id} className="font-bold text-slate-800">
+            {paymentMethodsList.map((method, index) => (
+              <option key={`${method.id || 'pm'}-${index}`} value={method.id} className="font-bold text-slate-800">
                 {method.label}
               </option>
             ))}

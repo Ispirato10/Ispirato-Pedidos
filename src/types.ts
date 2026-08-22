@@ -24,6 +24,21 @@ export interface PaymentMethodOption {
   active?: boolean;
 }
 
+export function getPaymentMethodLabel(methodId: string, customMethods?: PaymentMethodOption[]): string {
+  if (!methodId) return '';
+  if (customMethods && customMethods.length > 0) {
+    const found = customMethods.find(m => m.id === methodId);
+    if (found) return found.label;
+  }
+  switch (methodId) {
+    case 'pix': return 'PIX à Vista (Chave CNPJ: 40.587.128/0001-18)';
+    case 'dinheiro': return 'Espécie na entrega';
+    case 'boleto-30': return 'Boleto Bancário (30 dias)';
+    case 'boleto-30-60': return 'Boleto Duplo (30/60 dias)';
+    default: return methodId;
+  }
+}
+
 export interface AppSettings {
   whatsappNumber: string;
   minimumOrderQty: number;

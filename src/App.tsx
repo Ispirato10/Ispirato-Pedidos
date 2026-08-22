@@ -8,7 +8,7 @@ import {
 import { auth, db, googleProvider, OperationType, handleFirestoreError } from './firebase';
 import { onAuthStateChanged, User as FirebaseUser, signInWithPopup, signInAnonymously, signOut, signInWithEmailAndPassword } from 'firebase/auth';
 import { collection, doc, getDoc, getDocs, setDoc, addDoc } from 'firebase/firestore';
-import { Product, AppSettings } from './types';
+import { Product, AppSettings, getPaymentMethodLabel } from './types';
 
 // Importing components
 import PWAPrompt from './components/PWAPrompt';
@@ -464,13 +464,7 @@ export default function App() {
     let msg = `*NOVO PEDIDO DE ATACADO - ISPIRATO*\n\n`;
     msg += `\uD83D\uDC64 *Revendedor:* ${formData.name}\n`;
     msg += `\uD83D\uDCE7 *E-mail:* ${formData.email}\n`;
-    msg += `\uD83D\uDCB3 *Faturamento:* ${
-      formData.paymentMethod === 'pix' ? 'PIX à Vista (Chave CNPJ: 40.587.128/0001-18)' :
-      formData.paymentMethod === 'dinheiro' ? 'Espécie na entrega' :
-      formData.paymentMethod === 'boleto-30' ? 'Boleto Bancário (30 dias)' :
-      formData.paymentMethod === 'boleto-30-60' ? 'Boleto Duplo (30/60 dias)' :
-      formData.paymentMethod
-    }\n`;
+    msg += `\uD83D\uDCB3 *Faturamento:* ${getPaymentMethodLabel(formData.paymentMethod, settings.paymentMethods)}\n`;
     msg += `\uD83D\uDCC4 *Nota Fiscal:* ${formData.needsInvoice ? 'Sim, emitir NF-e' : 'Não necessita'}\n`;
     msg += `━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
     msg += `\uD83D\uDCE6 *ITENS DO PEDIDO:*\n`;
@@ -532,7 +526,7 @@ export default function App() {
     window.open(whatsappUrl, '_blank');
   };
 
-  const activeProducts = products.filter(p => p.active);
+  const activeProducts = products.filter(p => p.active !== false);
   
   // Real-time Search and Category logic
   const uniqueCategories = ['Todos', ...Array.from(new Set(activeProducts.map(p => p.category).filter(Boolean)))];

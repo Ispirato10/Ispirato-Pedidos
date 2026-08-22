@@ -1,11 +1,11 @@
-const CACHE_NAME = 'ispirato-revenda-v1.6';
+const CACHE_NAME = 'ispirato-revenda-v1.7';
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',
   '/manifest.json',
   '/icon-192.png',
   '/icon-512.png',
-  '/favicon.ico',
+  '/favicon.png',
   '/share.jpg'
 ];
 
@@ -14,7 +14,9 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
-        return cache.addAll(PRECACHE_ASSETS);
+        return Promise.allSettled(
+          PRECACHE_ASSETS.map(asset => cache.add(asset).catch(err => console.warn('Failed to cache:', asset, err)))
+        );
       })
       .then(() => self.skipWaiting())
   );
